@@ -1,6 +1,9 @@
 const express = require("express");
 const cors = require("cors");
 
+const avatarRoutes = require("./routes/avatar.routes");
+const deviceRoutes = require("./routes/device.routes");
+
 const app = express();
 
 app.use(cors());
@@ -12,6 +15,9 @@ app.get("/api/health", (req, res) => {
     message: "VEXA backend is running"
   });
 });
+
+app.use("/api/avatars", avatarRoutes);
+app.use("/api/devices", deviceRoutes);
 
 const PORT = 3000;
 
