@@ -1,6 +1,9 @@
+require("dotenv").config();
+
 const express = require("express");
 const cors = require("cors");
 
+const authRoutes = require("./routes/auth.routes");
 const avatarRoutes = require("./routes/avatar.routes");
 const deviceRoutes = require("./routes/device.routes");
 
@@ -16,6 +19,7 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+app.use("/api/auth", authRoutes);
 app.use("/api/avatars", avatarRoutes);
 app.use("/api/devices", deviceRoutes);
 
