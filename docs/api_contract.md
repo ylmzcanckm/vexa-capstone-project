@@ -119,3 +119,117 @@ Response:
 Note:
 
 This endpoint simulates nearby devices for frontend testing. It will later be replaced or extended with real BLE/device integration logic.
+
+---
+
+## Auth
+
+### POST /auth/register
+
+Description:
+
+Creates a new user account. This endpoint currently stores users in memory for development purposes. Data will be lost when the backend server restarts.
+
+Full local URL:
+
+```text
+http://localhost:3000/api/auth/register
+```
+
+Request:
+
+```json
+{
+  "email": "can@example.com",
+  "password": "123456",
+  "fullName": "Can"
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "user_1",
+    "email": "can@example.com",
+    "fullName": "Can"
+  }
+}
+```
+
+Possible Errors:
+
+```json
+{
+  "success": false,
+  "message": "Email, password and fullName are required"
+}
+```
+
+```json
+{
+  "success": false,
+  "message": "Email already exists"
+}
+```
+
+---
+
+### POST /auth/login
+
+Description:
+
+Logs in an existing user and returns a JWT token.
+
+Full local URL:
+
+```text
+http://localhost:3000/api/auth/login
+```
+
+Request:
+
+```json
+{
+  "email": "can@example.com",
+  "password": "123456"
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "token": "jwt_token_here",
+    "user": {
+      "id": "user_1",
+      "email": "can@example.com",
+      "fullName": "Can"
+    }
+  }
+}
+```
+
+Possible Errors:
+
+```json
+{
+  "success": false,
+  "message": "Email and password are required"
+}
+```
+
+```json
+{
+  "success": false,
+  "message": "Invalid email or password"
+}
+```
+
+Note:
+
+The token will be used later for protected user-specific endpoints such as profile, selected avatar, selected mode and match history.
