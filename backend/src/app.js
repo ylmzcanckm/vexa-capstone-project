@@ -6,6 +6,7 @@ const cors = require("cors");
 const authRoutes = require("./routes/auth.routes");
 const avatarRoutes = require("./routes/avatar.routes");
 const deviceRoutes = require("./routes/device.routes");
+const userRoutes = require("./routes/user.routes");
 
 const app = express();
 
@@ -22,6 +23,7 @@ app.get("/api/health", (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/avatars", avatarRoutes);
 app.use("/api/devices", deviceRoutes);
+app.use("/api/users", userRoutes);
 
 const PORT = 3000;
 

@@ -233,3 +233,202 @@ Possible Errors:
 Note:
 
 The token will be used later for protected user-specific endpoints such as profile, selected avatar, selected mode and match history.
+
+---
+
+## Users
+
+### GET /users/me
+
+Description:
+
+Returns the authenticated user's account information, profile information and user settings. This endpoint requires a valid JWT token.
+
+Full local URL:
+
+```text
+http://localhost:3000/api/users/me
+```
+
+Headers:
+
+```text
+Authorization: Bearer jwt_token_here
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "user_1",
+    "email": "profiletest@example.com",
+    "fullName": "Profile Test",
+    "profile": null,
+    "settings": null
+  }
+}
+```
+
+Note:
+
+If the user has not created profile information or selected avatar/mode yet, `profile` and `settings` will return as `null`.
+
+---
+
+### PUT /users/me/profile
+
+Description:
+
+Creates or updates the authenticated user's profile information. This endpoint requires a valid JWT token.
+
+Full local URL:
+
+```text
+http://localhost:3000/api/users/me/profile
+```
+
+Headers:
+
+```text
+Authorization: Bearer jwt_token_here
+Content-Type: application/json
+```
+
+Request:
+
+```json
+{
+  "bio": "Software engineering student working on VEXA project.",
+  "interests": ["technology", "gaming", "networking"],
+  "personalityTags": ["calm", "team-oriented", "curious"]
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "userId": "user_1",
+    "bio": "Software engineering student working on VEXA project.",
+    "interests": ["technology", "gaming", "networking"],
+    "personalityTags": ["calm", "team-oriented", "curious"],
+    "updatedAt": "2026-05-13T00:00:00.000Z"
+  }
+}
+```
+
+---
+
+### PUT /users/me/avatar
+
+Description:
+
+Updates the authenticated user's selected avatar. This endpoint requires a valid JWT token.
+
+Full local URL:
+
+```text
+http://localhost:3000/api/users/me/avatar
+```
+
+Headers:
+
+```text
+Authorization: Bearer jwt_token_here
+Content-Type: application/json
+```
+
+Request:
+
+```json
+{
+  "avatarId": "avatar_1"
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "userId": "user_1",
+    "selectedAvatarId": "avatar_1",
+    "selectedMode": null,
+    "isAvailable": true,
+    "updatedAt": "2026-05-13T00:00:00.000Z"
+  }
+}
+```
+
+Possible Error:
+
+```json
+{
+  "success": false,
+  "message": "avatarId is required"
+}
+```
+
+---
+
+### PUT /users/me/mode
+
+Description:
+
+Updates the authenticated user's selected mode. The mode must be either `social` or `networking`. This endpoint requires a valid JWT token.
+
+Full local URL:
+
+```text
+http://localhost:3000/api/users/me/mode
+```
+
+Headers:
+
+```text
+Authorization: Bearer jwt_token_here
+Content-Type: application/json
+```
+
+Request:
+
+```json
+{
+  "mode": "networking"
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "userId": "user_1",
+    "selectedAvatarId": "avatar_1",
+    "selectedMode": "networking",
+    "isAvailable": true,
+    "updatedAt": "2026-05-13T00:00:00.000Z"
+  }
+}
+```
+
+Possible Error:
+
+```json
+{
+  "success": false,
+  "message": "mode must be either social or networking"
+}
+```
+
+---
+
+## Development Notes
+
+The current backend uses an in-memory temporary store for users, profiles and settings. This means data will be deleted when the backend server restarts. A real database will be added later.
