@@ -2,9 +2,9 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
-const router = express.Router();
+const { users } = require("../models/memoryStore");
 
-const users = [];
+const router = express.Router();
 
 router.post("/register", async (req, res) => {
   try {
