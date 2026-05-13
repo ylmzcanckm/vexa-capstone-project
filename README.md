@@ -87,10 +87,16 @@ The backend will run on:
 http://localhost:3000
 ```
 
-Base API URL:
+Base API URL for local development:
 
 ```text
 http://localhost:3000/api
+```
+
+Production API URL:
+
+```text
+https://vexa-backend-umg2.onrender.com/api
 ```
 
 ---

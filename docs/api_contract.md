@@ -8,6 +8,12 @@ Local development:
 http://localhost:3000/api
 ```
 
+Production:
+
+```text
+https://vexa-backend-umg2.onrender.com/api
+```
+
 ---
 
 ## Health Check
