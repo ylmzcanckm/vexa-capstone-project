@@ -609,3 +609,222 @@ Possible Error:
 Note:
 
 The current device pairing system uses an in-memory temporary store. Pairing data will be deleted when the backend server restarts. A real database will be added later.
+
+---
+
+## Matches
+
+### GET /matches/candidates
+
+Description:
+
+Returns possible match candidates for the authenticated user. This endpoint requires a valid JWT token.
+
+Full local URL:
+
+```text
+http://localhost:3000/api/matches/candidates
+```
+
+Headers:
+
+```text
+Authorization: Bearer jwt_token_here
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "user_2",
+      "email": "matchb@example.com",
+      "fullName": "Match User B",
+      "profile": {
+        "userId": "user_2",
+        "bio": "User B profile for matching test.",
+        "interests": ["technology", "music", "networking"],
+        "personalityTags": ["curious", "creative"],
+        "updatedAt": "2026-05-13T00:00:00.000Z"
+      },
+      "settings": {
+        "userId": "user_2",
+        "selectedAvatarId": null,
+        "selectedMode": "networking",
+        "isAvailable": true,
+        "updatedAt": "2026-05-13T00:00:00.000Z"
+      }
+    }
+  ]
+}
+```
+
+---
+
+### POST /matches/check
+
+Description:
+
+Checks the match compatibility between the authenticated user and a target user. The target user can be selected by `targetUserId` or `targetEmail`.
+
+Full local URL:
+
+```text
+http://localhost:3000/api/matches/check
+```
+
+Headers:
+
+```text
+Authorization: Bearer jwt_token_here
+Content-Type: application/json
+```
+
+Request:
+
+```json
+{
+  "targetEmail": "matchb@example.com"
+}
+```
+
+Alternative Request:
+
+```json
+{
+  "targetUserId": "user_2"
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "match_1",
+    "userId1": "user_1",
+    "userId2": "user_2",
+    "matchScore": 85,
+    "commonInterests": ["technology", "networking"],
+    "commonPersonalityTags": ["curious"],
+    "sameMode": true,
+    "mode": "networking",
+    "status": "detected",
+    "createdAt": "2026-05-13T00:00:00.000Z",
+    "updatedAt": "2026-05-13T00:00:00.000Z"
+  }
+}
+```
+
+Possible Errors:
+
+```json
+{
+  "success": false,
+  "message": "Current user not found"
+}
+```
+
+```json
+{
+  "success": false,
+  "message": "Target user not found"
+}
+```
+
+```json
+{
+  "success": false,
+  "message": "User cannot match with themselves"
+}
+```
+
+---
+
+### GET /matches/history
+
+Description:
+
+Returns the authenticated user's match history. This endpoint requires a valid JWT token.
+
+Full local URL:
+
+```text
+http://localhost:3000/api/matches/history
+```
+
+Headers:
+
+```text
+Authorization: Bearer jwt_token_here
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "match_1",
+      "userId1": "user_1",
+      "userId2": "user_2",
+      "matchScore": 85,
+      "commonInterests": ["technology", "networking"],
+      "commonPersonalityTags": ["curious"],
+      "sameMode": true,
+      "mode": "networking",
+      "status": "detected",
+      "createdAt": "2026-05-13T00:00:00.000Z",
+      "updatedAt": "2026-05-13T00:00:00.000Z",
+      "otherUser": {
+        "id": "user_2",
+        "email": "matchb@example.com",
+        "fullName": "Match User B"
+      }
+    }
+  ]
+}
+```
+
+---
+
+## Matching Score Logic
+
+The current matching score is calculated with the following temporary logic:
+
+```text
+Each common interest: +25 points
+Each common personality tag: +15 points
+Same selected mode: +20 points
+Maximum score: 100
+Match threshold: 50
+```
+
+Example:
+
+```text
+Common interests: technology, networking = 50 points
+Common personality tags: curious = 15 points
+Same mode: networking = 20 points
+Total score: 85
+```
+
+If the score is 50 or higher, the match status becomes:
+
+```text
+detected
+```
+
+If the score is below 50, the match status becomes:
+
+```text
+not_matched
+```
+
+Note:
+
+This matching logic is temporary and will be improved later based on real project requirements, user profiles and BLE proximity data.

@@ -7,6 +7,7 @@ const authRoutes = require("./routes/auth.routes");
 const avatarRoutes = require("./routes/avatar.routes");
 const deviceRoutes = require("./routes/device.routes");
 const userRoutes = require("./routes/user.routes");
+const matchRoutes = require("./routes/match.routes");
 
 const app = express();
 
@@ -24,6 +25,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/avatars", avatarRoutes);
 app.use("/api/devices", deviceRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/matches", matchRoutes);
 
 const PORT = 3000;
 
