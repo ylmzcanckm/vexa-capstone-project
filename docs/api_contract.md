@@ -432,3 +432,180 @@ Possible Error:
 ## Development Notes
 
 The current backend uses an in-memory temporary store for users, profiles and settings. This means data will be deleted when the backend server restarts. A real database will be added later.
+
+---
+
+## Device Pairing
+
+### POST /devices/pair
+
+Description:
+
+Pairs the authenticated user with a VEXA device. This endpoint requires a valid JWT token.
+
+Full local URL:
+
+```text
+http://localhost:3000/api/devices/pair
+```
+
+Headers:
+
+```text
+Authorization: Bearer jwt_token_here
+Content-Type: application/json
+```
+
+Request:
+
+```json
+{
+  "deviceCode": "XY251108-H569-001",
+  "deviceName": "VEXA T-Display S3 001",
+  "model": "LILYGO T-Display S3"
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "pairing": {
+      "id": "pairing_1",
+      "userId": "user_1",
+      "deviceId": "device_1",
+      "deviceCode": "XY251108-H569-001",
+      "pairedAt": "2026-05-13T00:00:00.000Z"
+    },
+    "device": {
+      "id": "device_1",
+      "deviceCode": "XY251108-H569-001",
+      "deviceName": "VEXA T-Display S3 001",
+      "model": "LILYGO T-Display S3",
+      "status": "paired",
+      "createdAt": "2026-05-13T00:00:00.000Z"
+    }
+  }
+}
+```
+
+Possible Errors:
+
+```json
+{
+  "success": false,
+  "message": "deviceCode is required"
+}
+```
+
+```json
+{
+  "success": false,
+  "message": "User already has a paired device"
+}
+```
+
+---
+
+### GET /devices/my-device
+
+Description:
+
+Returns the authenticated user's paired device. This endpoint requires a valid JWT token.
+
+Full local URL:
+
+```text
+http://localhost:3000/api/devices/my-device
+```
+
+Headers:
+
+```text
+Authorization: Bearer jwt_token_here
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "pairing": {
+      "id": "pairing_1",
+      "userId": "user_1",
+      "deviceId": "device_1",
+      "deviceCode": "XY251108-H569-001",
+      "pairedAt": "2026-05-13T00:00:00.000Z"
+    },
+    "device": {
+      "id": "device_1",
+      "deviceCode": "XY251108-H569-001",
+      "deviceName": "VEXA T-Display S3 001",
+      "model": "LILYGO T-Display S3",
+      "status": "paired",
+      "createdAt": "2026-05-13T00:00:00.000Z"
+    }
+  }
+}
+```
+
+Possible Error:
+
+```json
+{
+  "success": false,
+  "message": "No paired device found"
+}
+```
+
+---
+
+### DELETE /devices/unpair
+
+Description:
+
+Removes the authenticated user's paired device connection. This endpoint requires a valid JWT token.
+
+Full local URL:
+
+```text
+http://localhost:3000/api/devices/unpair
+```
+
+Headers:
+
+```text
+Authorization: Bearer jwt_token_here
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "message": "Device unpaired successfully",
+  "data": {
+    "id": "pairing_1",
+    "userId": "user_1",
+    "deviceId": "device_1",
+    "deviceCode": "XY251108-H569-001",
+    "pairedAt": "2026-05-13T00:00:00.000Z"
+  }
+}
+```
+
+Possible Error:
+
+```json
+{
+  "success": false,
+  "message": "No paired device found"
+}
+```
+
+Note:
+
+The current device pairing system uses an in-memory temporary store. Pairing data will be deleted when the backend server restarts. A real database will be added later.
