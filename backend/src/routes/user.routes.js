@@ -1,129 +1,217 @@
 const express = require("express");
 
 const authMiddleware = require("../middlewares/auth.middleware");
-const { users, profiles, userSettings } = require("../models/memoryStore");
+const db = require("../config/db");
 
 const router = express.Router();
 
-router.get("/me", authMiddleware, (req, res) => {
-  const user = users.find((item) => item.id === req.user.userId);
+router.get("/me", authMiddleware, async (req, res) => {
+  try {
+    const userResult = await db.query(
+      `SELECT 
+        id,
+        email,
+        full_name AS "fullName",
+        created_at AS "createdAt",
+        updated_at AS "updatedAt"
+       FROM users
+       WHERE id = $1`,
+      [req.user.userId]
+    );
 
-  if (!user) {
-    return res.status(404).json({
-      success: false,
-      message: "User not found"
-    });
-  }
+    const user = userResult.rows[0];
 
-  const profile = profiles.find((item) => item.userId === user.id) || null;
-  const settings = userSettings.find((item) => item.userId === user.id) || null;
-
-  res.json({
-    success: true,
-    data: {
-      id: user.id,
-      email: user.email,
-      fullName: user.fullName,
-      profile,
-      settings
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
     }
-  });
-});
 
-router.put("/me/profile", authMiddleware, (req, res) => {
-  const { bio, interests, personalityTags } = req.body;
+    const profileResult = await db.query(
+      `SELECT
+        user_id AS "userId",
+        bio,
+        interests,
+        personality_tags AS "personalityTags",
+        created_at AS "createdAt",
+        updated_at AS "updatedAt"
+       FROM profiles
+       WHERE user_id = $1`,
+      [req.user.userId]
+    );
 
-  let profile = profiles.find((item) => item.userId === req.user.userId);
+    const settingsResult = await db.query(
+      `SELECT
+        user_id AS "userId",
+        selected_avatar_id AS "selectedAvatarId",
+        selected_mode AS "selectedMode",
+        is_available AS "isAvailable",
+        created_at AS "createdAt",
+        updated_at AS "updatedAt"
+       FROM user_settings
+       WHERE user_id = $1`,
+      [req.user.userId]
+    );
 
-  if (!profile) {
-    profile = {
-      userId: req.user.userId,
-      bio: bio || "",
-      interests: interests || [],
-      personalityTags: personalityTags || [],
-      updatedAt: new Date().toISOString()
-    };
+    res.json({
+      success: true,
+      data: {
+        ...user,
+        profile: profileResult.rows[0] || null,
+        settings: settingsResult.rows[0] || null
+      }
+    });
+  } catch (error) {
+    console.error("Failed to fetch user:", error);
 
-    profiles.push(profile);
-  } else {
-    profile.bio = bio || profile.bio;
-    profile.interests = interests || profile.interests;
-    profile.personalityTags = personalityTags || profile.personalityTags;
-    profile.updatedAt = new Date().toISOString();
-  }
-
-  res.json({
-    success: true,
-    data: profile
-  });
-});
-
-router.put("/me/avatar", authMiddleware, (req, res) => {
-  const { avatarId } = req.body;
-
-  if (!avatarId) {
-    return res.status(400).json({
+    res.status(500).json({
       success: false,
-      message: "avatarId is required"
+      message: "Failed to fetch user"
     });
   }
-
-  let settings = userSettings.find((item) => item.userId === req.user.userId);
-
-  if (!settings) {
-    settings = {
-      userId: req.user.userId,
-      selectedAvatarId: avatarId,
-      selectedMode: null,
-      isAvailable: true,
-      updatedAt: new Date().toISOString()
-    };
-
-    userSettings.push(settings);
-  } else {
-    settings.selectedAvatarId = avatarId;
-    settings.updatedAt = new Date().toISOString();
-  }
-
-  res.json({
-    success: true,
-    data: settings
-  });
 });
 
-router.put("/me/mode", authMiddleware, (req, res) => {
-  const { mode } = req.body;
+router.put("/me/profile", authMiddleware, async (req, res) => {
+  try {
+    const { bio, interests, personalityTags } = req.body;
 
-  const allowedModes = ["social", "networking"];
+    const result = await db.query(
+      `INSERT INTO profiles (user_id, bio, interests, personality_tags)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (user_id)
+       DO UPDATE SET
+        bio = EXCLUDED.bio,
+        interests = EXCLUDED.interests,
+        personality_tags = EXCLUDED.personality_tags,
+        updated_at = CURRENT_TIMESTAMP
+       RETURNING
+        user_id AS "userId",
+        bio,
+        interests,
+        personality_tags AS "personalityTags",
+        created_at AS "createdAt",
+        updated_at AS "updatedAt"`,
+      [
+        req.user.userId,
+        bio || "",
+        interests || [],
+        personalityTags || []
+      ]
+    );
 
-  if (!mode || !allowedModes.includes(mode)) {
-    return res.status(400).json({
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error("Failed to update profile:", error);
+
+    res.status(500).json({
       success: false,
-      message: "mode must be either social or networking"
+      message: "Failed to update profile"
     });
   }
+});
 
-  let settings = userSettings.find((item) => item.userId === req.user.userId);
+router.put("/me/avatar", authMiddleware, async (req, res) => {
+  try {
+    const { avatarId } = req.body;
 
-  if (!settings) {
-    settings = {
-      userId: req.user.userId,
-      selectedAvatarId: null,
-      selectedMode: mode,
-      isAvailable: true,
-      updatedAt: new Date().toISOString()
-    };
+    if (!avatarId) {
+      return res.status(400).json({
+        success: false,
+        message: "avatarId is required"
+      });
+    }
 
-    userSettings.push(settings);
-  } else {
-    settings.selectedMode = mode;
-    settings.updatedAt = new Date().toISOString();
+    const avatarResult = await db.query(
+      "SELECT id FROM avatars WHERE id::text = $1",
+      [avatarId]
+    );
+
+    const avatar = avatarResult.rows[0];
+
+    if (!avatar) {
+      return res.status(404).json({
+        success: false,
+        message: "Avatar not found"
+      });
+    }
+
+    const result = await db.query(
+      `INSERT INTO user_settings (user_id, selected_avatar_id)
+       VALUES ($1, $2)
+       ON CONFLICT (user_id)
+       DO UPDATE SET
+        selected_avatar_id = EXCLUDED.selected_avatar_id,
+        updated_at = CURRENT_TIMESTAMP
+       RETURNING
+        user_id AS "userId",
+        selected_avatar_id AS "selectedAvatarId",
+        selected_mode AS "selectedMode",
+        is_available AS "isAvailable",
+        created_at AS "createdAt",
+        updated_at AS "updatedAt"`,
+      [req.user.userId, avatar.id]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error("Failed to update avatar:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to update avatar"
+    });
   }
+});
 
-  res.json({
-    success: true,
-    data: settings
-  });
+router.put("/me/mode", authMiddleware, async (req, res) => {
+  try {
+    const { mode } = req.body;
+
+    const allowedModes = ["social", "networking"];
+
+    if (!mode || !allowedModes.includes(mode)) {
+      return res.status(400).json({
+        success: false,
+        message: "mode must be either social or networking"
+      });
+    }
+
+    const result = await db.query(
+      `INSERT INTO user_settings (user_id, selected_mode)
+       VALUES ($1, $2)
+       ON CONFLICT (user_id)
+       DO UPDATE SET
+        selected_mode = EXCLUDED.selected_mode,
+        updated_at = CURRENT_TIMESTAMP
+       RETURNING
+        user_id AS "userId",
+        selected_avatar_id AS "selectedAvatarId",
+        selected_mode AS "selectedMode",
+        is_available AS "isAvailable",
+        created_at AS "createdAt",
+        updated_at AS "updatedAt"`,
+      [req.user.userId, mode]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error("Failed to update mode:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to update mode"
+    });
+  }
 });
 
 module.exports = router;
