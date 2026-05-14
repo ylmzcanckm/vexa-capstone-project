@@ -181,3 +181,60 @@ compare: branch-name
 The backend currently uses an in-memory temporary store. This means data is deleted when the server restarts.
 
 A real database will be added in a later phase.
+
+---
+
+## Database
+
+The backend uses Supabase PostgreSQL for persistent data storage.
+
+Database-backed modules:
+
+```text
+Auth
+Users
+Profiles
+User settings
+Avatars
+Device pairings
+Matches
+Match history
+```
+
+Environment variable required:
+
+```text
+DATABASE_URL
+```
+
+This value must be added locally in `backend/.env` and in Render environment variables.
+
+Do not commit real database credentials to GitHub.
+
+---
+
+## Current Backend Status
+
+The backend is deployed on Render and connected to Supabase PostgreSQL.
+
+Production API URL:
+
+```text
+https://vexa-backend-umg2.onrender.com/api
+```
+
+Currently working production modules:
+
+```text
+Health check
+Database health check
+Avatar listing
+Auth register/login
+User profile and settings
+Device pairing
+Matching and match history
+```
+
+Important frontend note:
+
+Most entity IDs are now UUID values. The frontend should use IDs returned from API responses instead of hardcoded mock IDs such as `user_1`, `avatar_1`, `device_1`, `pairing_1` or `match_1`.
