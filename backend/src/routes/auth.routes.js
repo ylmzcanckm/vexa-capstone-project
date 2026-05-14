@@ -2,7 +2,7 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
-const { users } = require("../models/memoryStore");
+const db = require("../config/db");
 
 const router = express.Router();
 
@@ -17,9 +17,12 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    const existingUser = users.find((user) => user.email === email);
+    const existingUser = await db.query(
+      "SELECT id FROM users WHERE email = $1",
+      [email]
+    );
 
-    if (existingUser) {
+    if (existingUser.rows.length > 0) {
       return res.status(409).json({
         success: false,
         message: "Email already exists"
@@ -28,25 +31,20 @@ router.post("/register", async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const newUser = {
-      id: `user_${users.length + 1}`,
-      email,
-      fullName,
-      password: hashedPassword,
-      createdAt: new Date().toISOString()
-    };
-
-    users.push(newUser);
+    const result = await db.query(
+      `INSERT INTO users (email, password_hash, full_name)
+       VALUES ($1, $2, $3)
+       RETURNING id, email, full_name AS "fullName", created_at AS "createdAt"`,
+      [email, hashedPassword, fullName]
+    );
 
     res.status(201).json({
       success: true,
-      data: {
-        id: newUser.id,
-        email: newUser.email,
-        fullName: newUser.fullName
-      }
+      data: result.rows[0]
     });
   } catch (error) {
+    console.error("Register failed:", error);
+
     res.status(500).json({
       success: false,
       message: "Register failed"
@@ -65,7 +63,18 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    const user = users.find((user) => user.email === email);
+    const result = await db.query(
+      `SELECT 
+        id,
+        email,
+        password_hash AS "passwordHash",
+        full_name AS "fullName"
+       FROM users
+       WHERE email = $1`,
+      [email]
+    );
+
+    const user = result.rows[0];
 
     if (!user) {
       return res.status(401).json({
@@ -74,7 +83,7 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
 
     if (!isPasswordValid) {
       return res.status(401).json({
@@ -106,6 +115,8 @@ router.post("/login", async (req, res) => {
       }
     });
   } catch (error) {
+    console.error("Login failed:", error);
+
     res.status(500).json({
       success: false,
       message: "Login failed"
