@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:vexa/core/storage/device_connection_preferences.dart';
+import 'package:vexa/core/storage/onboarding_preferences.dart';
 import 'package:vexa/core/theme/theme_mode_provider.dart';
+import 'package:vexa/features/auth/data/auth_repository.dart';
+import 'package:vexa/features/auth/presentation/screens/login_screen.dart';
 
 /// Hesap: karanlık mod, KVKK, çıkış (şifre değiştirme yok).
 class AccountSettingsScreen extends ConsumerWidget {
@@ -59,11 +63,20 @@ class AccountSettingsScreen extends ConsumerWidget {
           ListTile(
             leading: Icon(Icons.logout_rounded, color: muted),
             title: const Text('Çıkış yap'),
-            onTap: () => _soon(context),
+            onTap: () async {
+              await AuthRepository.logout();
+              await OnboardingPreferences.setComplete(false);
+              await DeviceConnectionPreferences.setLinked(false);
+              if (!context.mounted) return;
+              Navigator.of(context).pushAndRemoveUntil<void>(
+                MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
+                (_) => false,
+              );
+            },
           ),
           const SizedBox(height: 16),
           Text(
-            'Çıkış ve hesap silme akışları backend ile bağlanınca aktif olacak.',
+            'Çıkış yapınca oturum kapanır; tekrar e-posta ile giriş yaparsın.',
             style: textTheme.bodySmall?.copyWith(
               color: muted,
               height: 1.4,

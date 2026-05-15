@@ -3,8 +3,10 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:vexa/core/avatar/dicebear_dylan_avatar.dart';
 import 'package:vexa/core/avatar/dylan_manual_avatar_config.dart';
 import 'package:vexa/core/avatar/dylan_params_generator.dart';
+import 'package:vexa/core/api/api_exception.dart';
 import 'package:vexa/core/storage/onboarding_preferences.dart';
 import 'package:vexa/core/storage/user_profile_store.dart';
+import 'package:vexa/features/auth/data/user_repository.dart';
 import 'package:vexa/core/theme/app_colors.dart';
 import 'package:vexa/core/theme/vexa_theme_context.dart';
 import 'package:vexa/features/mode/presentation/screens/mode_selection_screen.dart';
@@ -120,7 +122,22 @@ class _AvatarSelectionScreenState extends State<AvatarSelectionScreen> {
     final core = p ??
         const StoredUserProfile(name: '', surname: '', birthDateIso: '');
     final seed = _persistExactVxg1 ?? _legacySeed ?? _config.serialize();
-    await UserProfileStore.save(core.copyWith(avatarSeed: seed));
+    final updated = core.copyWith(avatarSeed: seed);
+    await UserProfileStore.save(updated);
+    try {
+      await UserRepository.pushProfile(updated);
+      await UserRepository.syncDefaultAvatarIfNeeded();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Avatar sunucuya kaydedilemedi: ${e.message}')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sunucu bağlantısı yok; avatar yerelde kaydedildi.')),
+      );
+    }
     if (!mounted) return;
     if (widget.standaloneEdit) {
       Navigator.of(context).pop(true);

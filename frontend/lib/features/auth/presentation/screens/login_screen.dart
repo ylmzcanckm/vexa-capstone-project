@@ -1,28 +1,44 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:vexa/core/api/api_exception.dart';
 import 'package:vexa/core/theme/app_colors.dart';
 import 'package:vexa/core/theme/vexa_theme_context.dart';
+import 'package:vexa/features/auth/data/auth_repository.dart';
 import 'package:vexa/features/device/presentation/screens/device_connection_screen.dart';
-
-Future<void> _navigateAfterOAuth(BuildContext context, String logTag) async {
-  debugPrint(logTag);
-  if (!context.mounted) return;
-  await Navigator.of(context).pushReplacement<void, void>(
-    MaterialPageRoute<void>(
-      builder: (_) => DeviceConnectionScreen(
-        loginScreenBuilder: () => const LoginScreen(),
-      ),
-    ),
-  );
-}
 
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
 
+  Future<void> _signIn(
+    BuildContext context,
+    Future<void> Function() action,
+  ) async {
+    try {
+      await action();
+      if (!context.mounted) return;
+      await Navigator.of(context).pushReplacement<void, void>(
+        MaterialPageRoute<void>(
+          builder: (_) => DeviceConnectionScreen(
+            loginScreenBuilder: () => const LoginScreen(),
+          ),
+        ),
+      );
+    } on ApiException catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Giriş başarısız: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-
     final vexa = context.vexa;
 
     return Scaffold(
@@ -55,9 +71,9 @@ class LoginScreen extends StatelessWidget {
                   label: 'Google ile Devam Et',
                   icon: FontAwesomeIcons.google,
                   backgroundColor: AppColors.primary,
-                  onPressed: () => _navigateAfterOAuth(
+                  onPressed: () => _signIn(
                     context,
-                    'Google Login Pressed',
+                    AuthRepository.loginWithGoogle,
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -65,9 +81,9 @@ class LoginScreen extends StatelessWidget {
                   label: 'Apple ile Devam Et',
                   icon: FontAwesomeIcons.apple,
                   backgroundColor: AppColors.accent,
-                  onPressed: () => _navigateAfterOAuth(
+                  onPressed: () => _signIn(
                     context,
-                    'Apple Login Pressed',
+                    AuthRepository.loginWithApple,
                   ),
                 ),
                 const Spacer(),

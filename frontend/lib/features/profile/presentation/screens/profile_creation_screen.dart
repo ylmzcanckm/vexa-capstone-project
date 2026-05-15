@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:vexa/core/api/api_exception.dart';
 import 'package:vexa/core/storage/user_profile_store.dart';
+import 'package:vexa/features/auth/data/user_repository.dart';
 import 'package:vexa/core/theme/app_colors.dart';
 import 'package:vexa/core/theme/vexa_theme_context.dart';
 import 'package:vexa/core/utils/user_age.dart';
@@ -65,16 +67,34 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
     setState(() => _submitting = true);
     final existing = await UserProfileStore.load();
     final iso = UserAge.toIsoDateOnly(_birthDate!);
-    await UserProfileStore.save(
-      StoredUserProfile(
-        name: _nameController.text.trim(),
-        surname: _surnameController.text.trim(),
-        birthDateIso: iso,
-        avatarSeed: existing?.avatarSeed ?? '',
-        social: existing?.social,
-        business: existing?.business,
-      ),
+    final profile = StoredUserProfile(
+      name: _nameController.text.trim(),
+      surname: _surnameController.text.trim(),
+      birthDateIso: iso,
+      avatarSeed: existing?.avatarSeed ?? '',
+      social: existing?.social,
+      business: existing?.business,
     );
+    await UserProfileStore.save(profile);
+    try {
+      await UserRepository.pushProfile(profile);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Profil sunucuya kaydedilemedi: ${e.message}')),
+      );
+      return;
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Sunucuya bağlanılamadı. Yerel kayıt yapıldı; tekrar dene.'),
+        ),
+      );
+      return;
+    }
     if (!mounted) return;
     setState(() => _submitting = false);
     await Navigator.of(context).pushReplacement(

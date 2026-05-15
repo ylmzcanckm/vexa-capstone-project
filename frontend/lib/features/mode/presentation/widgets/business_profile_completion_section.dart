@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:vexa/core/constants/business_network_catalog.dart';
 import 'package:vexa/core/storage/user_profile_store.dart';
+import 'package:vexa/features/auth/data/user_repository.dart';
 import 'package:vexa/core/theme/app_colors.dart';
 import 'package:vexa/core/theme/vexa_theme_context.dart';
 
@@ -201,6 +202,13 @@ class BusinessProfileEditorState extends State<BusinessProfileEditor> {
       networkPhotoPath: _networkPhotoPath,
     );
     await UserProfileStore.save(core.copyWith(business: business));
+    try {
+      await UserRepository.syncLocalProfileToServer();
+    } catch (_) {
+      if (!mounted) return false;
+      setState(() => _saving = false);
+      return false;
+    }
     if (!mounted) return false;
     setState(() => _saving = false);
     return true;

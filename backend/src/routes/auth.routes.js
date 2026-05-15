@@ -1,10 +1,20 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const { OAuth2Client } = require("google-auth-library");
+const appleSignin = require("apple-signin-auth");
 
 const db = require("../config/db");
+const {
+  findOrCreateOAuthUser,
+  issueToken
+} = require("../services/oauth_user.service");
 
 const router = express.Router();
+
+const googleClient = process.env.GOOGLE_CLIENT_ID
+  ? new OAuth2Client(process.env.GOOGLE_CLIENT_ID)
+  : null;
 
 router.post("/register", async (req, res) => {
   try {
@@ -120,6 +130,98 @@ router.post("/login", async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Login failed"
+    });
+  }
+});
+
+router.post("/google", async (req, res) => {
+  try {
+    const { idToken } = req.body;
+
+    if (!idToken) {
+      return res.status(400).json({
+        success: false,
+        message: "idToken is required"
+      });
+    }
+
+    if (!googleClient || !process.env.GOOGLE_CLIENT_ID) {
+      return res.status(503).json({
+        success: false,
+        message: "Google sign-in is not configured on the server"
+      });
+    }
+
+    const ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID
+    });
+
+    const payload = ticket.getPayload();
+    const email = payload?.email;
+
+    if (!email) {
+      return res.status(401).json({
+        success: false,
+        message: "Google account email is missing"
+      });
+    }
+
+    const user = await findOrCreateOAuthUser(email, payload.name || email);
+    const session = issueToken(user);
+
+    res.json({ success: true, data: session });
+  } catch (error) {
+    console.error("Google auth failed:", error);
+    res.status(401).json({
+      success: false,
+      message: "Google sign-in failed"
+    });
+  }
+});
+
+router.post("/apple", async (req, res) => {
+  try {
+    const { identityToken, email: bodyEmail, fullName: bodyFullName } = req.body;
+
+    if (!identityToken) {
+      return res.status(400).json({
+        success: false,
+        message: "identityToken is required"
+      });
+    }
+
+    if (!process.env.APPLE_CLIENT_ID) {
+      return res.status(503).json({
+        success: false,
+        message: "Apple sign-in is not configured on the server"
+      });
+    }
+
+    const claims = await appleSignin.verifyIdToken(identityToken, {
+      audience: process.env.APPLE_CLIENT_ID,
+      ignoreExpiration: false
+    });
+
+    const email = bodyEmail || claims.email;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Apple email is unavailable. Sign in again and allow email sharing."
+      });
+    }
+
+    const user = await findOrCreateOAuthUser(email, bodyFullName || email);
+    const session = issueToken(user);
+
+    res.json({ success: true, data: session });
+  } catch (error) {
+    console.error("Apple auth failed:", error);
+    res.status(401).json({
+      success: false,
+      message: "Apple sign-in failed"
     });
   }
 });

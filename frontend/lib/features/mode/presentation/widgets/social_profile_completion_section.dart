@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:vexa/core/constants/gender_options.dart';
 import 'package:vexa/core/constants/education_options.dart';
 import 'package:vexa/core/storage/user_profile_store.dart';
+import 'package:vexa/features/auth/data/user_repository.dart';
 import 'package:vexa/core/theme/vexa_theme_context.dart';
 import 'package:vexa/core/widgets/education_tab_bar.dart';
 import 'package:vexa/core/widgets/substance_choice_bar.dart';
@@ -121,6 +122,13 @@ class SocialProfileEditorState extends State<SocialProfileEditor> {
           _randomSkill.text.trim().isEmpty ? null : _randomSkill.text.trim(),
     );
     await UserProfileStore.save(core.copyWith(social: social));
+    try {
+      await UserRepository.syncLocalProfileToServer();
+    } catch (_) {
+      if (!mounted) return false;
+      setState(() => _saving = false);
+      return false;
+    }
     if (!mounted) return false;
     setState(() => _saving = false);
     return true;

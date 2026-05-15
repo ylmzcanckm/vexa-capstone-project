@@ -12,7 +12,9 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "apple-signin-auth": "^2.0.0",
     "bcryptjs": "^3.0.3",
+    "google-auth-library": "^9.15.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
