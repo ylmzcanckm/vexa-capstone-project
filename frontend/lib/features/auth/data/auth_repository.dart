@@ -16,12 +16,12 @@ final class AuthRepository {
     await AuthTokenStore.write(session.token);
   }
 
-  /// Google native → POST /auth/google
+  /// Google native → POST /auth/google (idToken veya accessToken)
   static Future<void> loginWithGoogle() async {
-    final idToken = await OAuthSignInService.googleIdToken();
+    final google = await OAuthSignInService.googleCredentials();
     final json = await ApiClient.post(
       '/auth/google',
-      body: {'idToken': idToken},
+      body: google.toJson(),
     );
     await _persistSession(json['data'] as Map<String, dynamic>? ?? {});
   }

@@ -136,12 +136,12 @@ router.post("/login", async (req, res) => {
 
 router.post("/google", async (req, res) => {
   try {
-    const { idToken } = req.body;
+    const { idToken, accessToken } = req.body;
 
-    if (!idToken) {
+    if (!idToken && !accessToken) {
       return res.status(400).json({
         success: false,
-        message: "idToken is required"
+        message: "idToken or accessToken is required"
       });
     }
 
@@ -152,13 +152,23 @@ router.post("/google", async (req, res) => {
       });
     }
 
-    const ticket = await googleClient.verifyIdToken({
-      idToken,
-      audience: process.env.GOOGLE_CLIENT_ID
-    });
+    let email;
+    let fullName;
 
-    const payload = ticket.getPayload();
-    const email = payload?.email;
+    if (idToken) {
+      const ticket = await googleClient.verifyIdToken({
+        idToken,
+        audience: process.env.GOOGLE_CLIENT_ID
+      });
+      const payload = ticket.getPayload();
+      email = payload?.email;
+      fullName = payload?.name;
+    } else {
+      // Flutter Web çoğu zaman idToken yerine accessToken verir.
+      const tokenInfo = await googleClient.getTokenInfo(accessToken);
+      email = tokenInfo.email;
+      fullName = tokenInfo.name;
+    }
 
     if (!email) {
       return res.status(401).json({
@@ -167,7 +177,7 @@ router.post("/google", async (req, res) => {
       });
     }
 
-    const user = await findOrCreateOAuthUser(email, payload.name || email);
+    const user = await findOrCreateOAuthUser(email, fullName || email);
     const session = issueToken(user);
 
     res.json({ success: true, data: session });

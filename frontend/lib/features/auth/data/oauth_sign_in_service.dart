@@ -1,26 +1,38 @@
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:vexa/core/api/api_exception.dart';
+import 'package:vexa/core/config/app_config.dart';
 
-/// Google / Apple native oturum açma — id token üretir.
+/// Google / Apple native oturum açma.
 final class OAuthSignInService {
   const OAuthSignInService._();
 
   static final GoogleSignIn _google = GoogleSignIn(
-    scopes: const ['email', 'profile'],
+    clientId: AppConfig.googleWebClientId,
+    serverClientId: AppConfig.googleWebClientId,
+    scopes: const ['email', 'openid'],
   );
 
-  static Future<String> googleIdToken() async {
+  /// Web'de [idToken] boş gelebilir; o zaman [accessToken] kullanılır.
+  static Future<GoogleAuthPayload> googleCredentials() async {
+    await _google.signOut();
     final account = await _google.signIn();
     if (account == null) {
       throw const ApiException('Google girişi iptal edildi.');
     }
     final auth = await account.authentication;
-    final token = auth.idToken;
-    if (token == null || token.isEmpty) {
-      throw const ApiException('Google kimlik jetonu alınamadı.');
+
+    final idToken = auth.idToken;
+    if (idToken != null && idToken.isNotEmpty) {
+      return GoogleAuthPayload(idToken: idToken);
     }
-    return token;
+
+    final accessToken = auth.accessToken;
+    if (accessToken != null && accessToken.isNotEmpty) {
+      return GoogleAuthPayload(accessToken: accessToken);
+    }
+
+    throw const ApiException('Google kimlik jetonu alınamadı.');
   }
 
   static Future<AppleOAuthPayload> appleCredentials() async {
@@ -50,6 +62,20 @@ final class OAuthSignInService {
       email: credential.email,
       fullName: fullName.isEmpty ? null : fullName,
     );
+  }
+}
+
+final class GoogleAuthPayload {
+  GoogleAuthPayload({this.idToken, this.accessToken});
+
+  final String? idToken;
+  final String? accessToken;
+
+  Map<String, dynamic> toJson() {
+    if (idToken != null && idToken!.isNotEmpty) {
+      return {'idToken': idToken};
+    }
+    return {'accessToken': accessToken};
   }
 }
 
