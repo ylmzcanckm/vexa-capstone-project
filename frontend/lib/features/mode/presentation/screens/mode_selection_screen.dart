@@ -1,0 +1,339 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:vexa/core/theme/vexa_theme_context.dart';
+import 'package:vexa/features/history/presentation/history_screen.dart';
+import 'package:vexa/features/mode/domain/vexa_mode.dart';
+import 'package:vexa/features/mode/presentation/vexa_mode_style.dart';
+import 'package:vexa/features/mode/presentation/widgets/mode_profile_gate_tabs.dart';
+import 'package:vexa/features/profile/presentation/screens/profile_person_screen.dart';
+import 'package:vexa/features/settings/presentation/settings_screen.dart';
+
+/// Profil + avatar tamamlandıktan sonra ana ekran (wireframe: üst hap modlar,
+/// ortada sürüklenen arka plan, altta Geçmiş / Profil / Ayarlar).
+class ModeSelectionScreen extends StatefulWidget {
+  const ModeSelectionScreen({super.key});
+
+  @override
+  State<ModeSelectionScreen> createState() => _ModeSelectionScreenState();
+}
+
+class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
+  final PageController _pageController = PageController();
+  int _pageIndex = 0;
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _onPageChanged(int index) {
+    setState(() => _pageIndex = index);
+    debugPrint('VexaMode: ${VexaMode.values[index]}');
+  }
+
+  Future<void> _goToPage(int index) async {
+    await _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  double _contentTopPadding(BuildContext context) {
+    final top = MediaQuery.paddingOf(context).top;
+    return top + 24 + 28 + 10 + 52 + 16;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final topInset = MediaQuery.paddingOf(context).top;
+    final vexa = context.vexa;
+
+    return Scaffold(
+      backgroundColor: vexa.scaffold,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          PageView.builder(
+            controller: _pageController,
+            onPageChanged: _onPageChanged,
+            itemCount: VexaMode.values.length,
+            itemBuilder: (context, index) {
+              final mode = VexaMode.values[index];
+              final bottomPad =
+                  MediaQuery.paddingOf(context).bottom + 112;
+              return DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: mode.pageBackgroundGradient(context),
+                ),
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.fromLTRB(
+                    24,
+                    _contentTopPadding(context),
+                    24,
+                    bottomPad,
+                  ),
+                  physics: const BouncingScrollPhysics(
+                    parent: AlwaysScrollableScrollPhysics(),
+                  ),
+                  child: _ModeBodyContent(mode: mode),
+                ),
+              );
+            },
+          ),
+          Positioned(
+            top: topInset + 8,
+            left: 20,
+            right: 20,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'VEXA',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.2,
+                        color: vexa.textPrimary,
+                      ),
+                ),
+                const SizedBox(height: 10),
+                _ModePillBar(
+                  currentIndex: _pageIndex,
+                  onSelect: (i) => _goToPage(i),
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: _BottomActionsBar(
+              onHistory: () {
+                Navigator.of(context).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const HistoryScreen(),
+                  ),
+                );
+              },
+              onProfile: () {
+                Navigator.of(context).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => ProfilePersonScreen(
+                      profileContext: VexaMode.values[_pageIndex],
+                    ),
+                  ),
+                );
+              },
+              onSettings: () {
+                Navigator.of(context).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const SettingsScreen(),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModePillBar extends StatelessWidget {
+  const _ModePillBar({
+    required this.currentIndex,
+    required this.onSelect,
+  });
+
+  final int currentIndex;
+  final ValueChanged<int> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final vexa = context.vexa;
+    return Material(
+      color: vexa.pillBar,
+      borderRadius: BorderRadius.circular(32),
+      elevation: context.isDarkMode ? 0 : 2,
+      shadowColor: Colors.black26,
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: Row(
+          children: List.generate(VexaMode.values.length, (i) {
+            final mode = VexaMode.values[i];
+            final selected = i == currentIndex;
+            return Expanded(
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => onSelect(i),
+                  borderRadius: BorderRadius.circular(28),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeOut,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: selected ? mode.accentColor : Colors.transparent,
+                      borderRadius: BorderRadius.circular(28),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      mode.shortLabel,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: selected ? Colors.white : vexa.textPrimary,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
+      ),
+    );
+  }
+}
+
+class _ModeBodyContent extends ConsumerWidget {
+  const _ModeBodyContent({required this.mode});
+
+  final VexaMode mode;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final textTheme = Theme.of(context).textTheme;
+    final vexa = context.vexa;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          mode.bodyHeadline,
+          style: textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: vexa.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          mode.bodySubtitle,
+          style: textTheme.titleMedium,
+        ),
+        const SizedBox(height: 28),
+        Text(
+          'Yana kaydırarak mod değiştir.',
+          style: TextStyle(
+            fontSize: 13,
+            color: vexa.textSecondary,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 20),
+        switch (mode) {
+          VexaMode.social => const SocialModeProfileGate(),
+          VexaMode.business => const NetworkModeProfileGate(),
+          VexaMode.ghost => const GhostModeVisual(),
+        },
+      ],
+    );
+  }
+}
+
+class _BottomActionsBar extends StatelessWidget {
+  const _BottomActionsBar({
+    required this.onHistory,
+    required this.onProfile,
+    required this.onSettings,
+  });
+
+  final VoidCallback onHistory;
+  final VoidCallback onProfile;
+  final VoidCallback onSettings;
+
+  @override
+  Widget build(BuildContext context) {
+    final vexa = context.vexa;
+    return Material(
+      color: vexa.bottomBar,
+      elevation: context.isDarkMode ? 0 : 8,
+      shadowColor: Colors.black12,
+      child: SafeArea(
+        top: false,
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: vexa.border)),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          child: Row(
+            children: [
+              Expanded(
+                child: _BottomTile(
+                  icon: Icons.history_rounded,
+                  label: 'Geçmiş',
+                  onTap: onHistory,
+                ),
+              ),
+              Expanded(
+                child: _BottomTile(
+                  icon: Icons.person_outline_rounded,
+                  label: 'Profil',
+                  onTap: onProfile,
+                ),
+              ),
+              Expanded(
+                child: _BottomTile(
+                  icon: Icons.settings_outlined,
+                  label: 'Ayarlar',
+                  onTap: onSettings,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BottomTile extends StatelessWidget {
+  const _BottomTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final vexa = context.vexa;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 26, color: vexa.textPrimary),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                color: vexa.textPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
