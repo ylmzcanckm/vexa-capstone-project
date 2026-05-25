@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:vexa/core/api/api_exception.dart';
@@ -7,11 +8,19 @@ import 'package:vexa/core/config/app_config.dart';
 final class OAuthSignInService {
   const OAuthSignInService._();
 
-  static final GoogleSignIn _google = GoogleSignIn(
-    clientId: AppConfig.googleWebClientId,
-    serverClientId: AppConfig.googleWebClientId,
-    scopes: const ['email', 'openid'],
-  );
+  static GoogleSignIn get _google {
+    if (kIsWeb) {
+      return GoogleSignIn(
+        clientId: AppConfig.googleWebClientId,
+        scopes: const ['email', 'openid'],
+      );
+    }
+    return GoogleSignIn(
+      clientId: AppConfig.googleWebClientId,
+      serverClientId: AppConfig.googleWebClientId,
+      scopes: const ['email', 'openid'],
+    );
+  }
 
   /// Web'de [idToken] boş gelebilir; o zaman [accessToken] kullanılır.
   static Future<GoogleAuthPayload> googleCredentials() async {
