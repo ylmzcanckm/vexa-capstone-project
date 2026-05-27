@@ -15,6 +15,7 @@ final class OAuthSignInService {
         scopes: const ['email', 'openid'],
       );
     }
+
     return GoogleSignIn(
       clientId: AppConfig.googleWebClientId,
       serverClientId: AppConfig.googleWebClientId,
@@ -25,10 +26,12 @@ final class OAuthSignInService {
   /// Web'de [idToken] boş gelebilir; o zaman [accessToken] kullanılır.
   static Future<GoogleAuthPayload> googleCredentials() async {
     await _google.signOut();
+
     final account = await _google.signIn();
     if (account == null) {
       throw const ApiException('Google girişi iptal edildi.');
     }
+
     final auth = await account.authentication;
 
     final idToken = auth.idToken;
@@ -84,6 +87,7 @@ final class GoogleAuthPayload {
     if (idToken != null && idToken!.isNotEmpty) {
       return {'idToken': idToken};
     }
+
     return {'accessToken': accessToken};
   }
 }
