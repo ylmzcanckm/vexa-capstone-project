@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:vexa/core/storage/device_connection_preferences.dart';
-import 'package:vexa/core/storage/onboarding_preferences.dart';
 import 'package:vexa/core/theme/theme_mode_provider.dart';
 import 'package:vexa/features/auth/data/auth_repository.dart';
 import 'package:vexa/features/auth/presentation/screens/login_screen.dart';
@@ -65,8 +63,6 @@ class AccountSettingsScreen extends ConsumerWidget {
             title: const Text('Çıkış yap'),
             onTap: () async {
               await AuthRepository.logout();
-              await OnboardingPreferences.setComplete(false);
-              await DeviceConnectionPreferences.setLinked(false);
               if (!context.mounted) return;
               Navigator.of(context).pushAndRemoveUntil<void>(
                 MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
@@ -76,7 +72,7 @@ class AccountSettingsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
           Text(
-            'Çıkış yapınca oturum kapanır; tekrar e-posta ile giriş yaparsın.',
+            'Çıkış yapınca oturum kapanır; tekrar Google/Apple ile giriş yaparsın.',
             style: textTheme.bodySmall?.copyWith(
               color: muted,
               height: 1.4,

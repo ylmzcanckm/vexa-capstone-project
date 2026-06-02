@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:vexa/core/api/api_exception.dart';
+import 'package:vexa/core/navigation/app_router.dart';
 import 'package:vexa/core/theme/app_colors.dart';
 import 'package:vexa/core/theme/vexa_theme_context.dart';
 import 'package:vexa/features/auth/data/auth_repository.dart';
-import 'package:vexa/features/device/presentation/screens/device_connection_screen.dart';
+import 'package:vexa/features/auth/data/user_repository.dart';
 
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
@@ -16,11 +17,13 @@ class LoginScreen extends StatelessWidget {
     try {
       await action();
       if (!context.mounted) return;
+      await UserRepository.syncFromServer();
+      if (!context.mounted) return;
+      final next = await AppRouter.homeForAuthenticatedUser();
+      if (!context.mounted) return;
       await Navigator.of(context).pushReplacement<void, void>(
         MaterialPageRoute<void>(
-          builder: (_) => DeviceConnectionScreen(
-            loginScreenBuilder: () => const LoginScreen(),
-          ),
+          builder: (_) => next,
         ),
       );
     } on ApiException catch (e) {
