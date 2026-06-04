@@ -1,8 +1,15 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:vexa/core/api/app_preferences_sync.dart';
 import 'package:vexa/core/storage/accessibility_preferences.dart';
 import 'package:vexa/core/storage/blocked_users_preferences.dart';
 import 'package:vexa/core/storage/notification_preferences.dart';
 import 'package:vexa/core/storage/privacy_preferences.dart';
+
+Future<void> _pushAppPrefsToServer() async {
+  try {
+    await AppPreferencesSync.pushToServer();
+  } catch (_) {}
+}
 
 final class NotificationSettings {
   const NotificationSettings({
@@ -50,16 +57,19 @@ class NotificationSettingsNotifier extends Notifier<NotificationSettings> {
   Future<void> setPush(bool v) async {
     await NotificationPreferences.setPush(v);
     state = state.copyWith(pushEnabled: v);
+    await _pushAppPrefsToServer();
   }
 
   Future<void> setInApp(bool v) async {
     await NotificationPreferences.setInApp(v);
     state = state.copyWith(inAppEnabled: v);
+    await _pushAppPrefsToServer();
   }
 
   Future<void> setMatchAlerts(bool v) async {
     await NotificationPreferences.setMatchAlerts(v);
     state = state.copyWith(matchAlertsEnabled: v);
+    await _pushAppPrefsToServer();
   }
 }
 
@@ -108,11 +118,13 @@ class PrivacySettingsNotifier extends Notifier<PrivacySettings> {
   Future<void> setDiscoverable(bool v) async {
     await PrivacyPreferences.setDiscoverable(v);
     state = state.copyWith(discoverable: v);
+    await _pushAppPrefsToServer();
   }
 
   Future<void> setShowEmail(bool v) async {
     await PrivacyPreferences.setShowEmailOnProfile(v);
     state = state.copyWith(showEmailOnProfile: v);
+    await _pushAppPrefsToServer();
   }
 
   Future<void> acceptKvkk() async {
@@ -120,6 +132,7 @@ class PrivacySettingsNotifier extends Notifier<PrivacySettings> {
     state = state.copyWith(
       kvkkAcceptedAtIso: DateTime.now().toUtc().toIso8601String(),
     );
+    await _pushAppPrefsToServer();
   }
 }
 
@@ -174,16 +187,19 @@ class AccessibilitySettingsNotifier extends Notifier<AccessibilitySettings> {
   Future<void> setTextScale(double v) async {
     await AccessibilityPreferences.setTextScale(v);
     state = state.copyWith(textScale: v);
+    await _pushAppPrefsToServer();
   }
 
   Future<void> setBoldText(bool v) async {
     await AccessibilityPreferences.setBoldText(v);
     state = state.copyWith(boldText: v);
+    await _pushAppPrefsToServer();
   }
 
   Future<void> setReduceMotion(bool v) async {
     await AccessibilityPreferences.setReduceMotion(v);
     state = state.copyWith(reduceMotion: v);
+    await _pushAppPrefsToServer();
   }
 }
 
@@ -213,11 +229,13 @@ class BlockedUsersNotifier extends Notifier<List<BlockedUserEntry>> {
       BlockedUserEntry(id: id, displayName: trimmed, note: note),
     );
     await _load();
+    await _pushAppPrefsToServer();
   }
 
   Future<void> remove(String id) async {
     await BlockedUsersPreferences.remove(id);
     await _load();
+    await _pushAppPrefsToServer();
   }
 }
 

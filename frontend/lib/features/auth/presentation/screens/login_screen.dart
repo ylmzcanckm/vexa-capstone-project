@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:vexa/core/api/api_exception.dart';
+import 'package:vexa/core/api/app_preferences_sync.dart';
 import 'package:vexa/core/navigation/app_router.dart';
 import 'package:vexa/core/theme/app_colors.dart';
 import 'package:vexa/core/theme/vexa_theme_context.dart';
@@ -18,6 +20,10 @@ class LoginScreen extends StatelessWidget {
       await action();
       if (!context.mounted) return;
       await UserRepository.syncFromServer();
+      if (!context.mounted) return;
+      await AppPreferencesSync.refreshProvidersFromLocalStorage(
+        ProviderScope.containerOf(context),
+      );
       if (!context.mounted) return;
       final next = await AppRouter.homeForAuthenticatedUser();
       if (!context.mounted) return;

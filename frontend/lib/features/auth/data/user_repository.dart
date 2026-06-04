@@ -37,12 +37,19 @@ final class UserRepository {
   static Future<void> pushProfile(StoredUserProfile profile) async {
     await ApiClient.put(
       '/users/me/profile',
-      body: ProfileBioCodec.profilePayload(profile),
+      body: await ProfileBioCodec.profilePayload(profile),
     );
   }
 
   /// Yerel profili sunucuya yazar (sosyal/network düzenleme sonrası).
   static Future<void> syncLocalProfileToServer() async {
+    final profile = await UserProfileStore.load();
+    if (profile == null) return;
+    await pushProfile(profile);
+  }
+
+  /// Sadece ayarları günceller (profil + `appPrefs` birlikte bio'da).
+  static Future<void> syncAppPreferencesToServer() async {
     final profile = await UserProfileStore.load();
     if (profile == null) return;
     await pushProfile(profile);

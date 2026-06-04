@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vexa/core/api/api_exception.dart';
+import 'package:vexa/core/api/app_preferences_sync.dart';
 import 'package:vexa/core/navigation/app_router.dart';
 import 'package:vexa/features/auth/data/auth_repository.dart';
 import 'package:vexa/core/storage/device_connection_preferences.dart';
@@ -8,14 +10,14 @@ import 'package:vexa/features/device/data/device_repository.dart';
 import 'package:vexa/features/auth/presentation/screens/login_screen.dart';
 
 /// Token kontrolü → sunucudan profil çek → uygun ekrana yönlendir.
-class AppStartupScreen extends StatefulWidget {
+class AppStartupScreen extends ConsumerStatefulWidget {
   const AppStartupScreen({super.key});
 
   @override
-  State<AppStartupScreen> createState() => _AppStartupScreenState();
+  ConsumerState<AppStartupScreen> createState() => _AppStartupScreenState();
 }
 
-class _AppStartupScreenState extends State<AppStartupScreen> {
+class _AppStartupScreenState extends ConsumerState<AppStartupScreen> {
   Widget? _child;
   String? _error;
 
@@ -34,6 +36,10 @@ class _AppStartupScreenState extends State<AppStartupScreen> {
       }
 
       await UserRepository.syncFromServer();
+      if (!mounted) return;
+      await AppPreferencesSync.refreshProvidersFromLocalStorage(
+        ProviderScope.containerOf(context),
+      );
       final paired = await DeviceRepository.fetchMyDevice();
       if (paired != null) {
         await DeviceConnectionPreferences.setLinked(true);

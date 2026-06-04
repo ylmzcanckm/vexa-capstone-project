@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:vexa/core/api/app_preferences_codec.dart';
 import 'package:vexa/core/api/models/user_models.dart';
 import 'package:vexa/core/storage/user_profile_store.dart';
 
@@ -9,11 +10,13 @@ final class ProfileBioCodec {
 
   static const _prefix = 'VEXA_PROFILE_V1:';
 
-  static String encode(StoredUserProfile profile) {
-    return '$_prefix${jsonEncode(profile.toJson())}';
+  static Future<String> encode(StoredUserProfile profile) async {
+    final json = profile.toJson();
+    json[AppPreferencesCodec.prefsKey] = await AppPreferencesCodec.exportJson();
+    return '$_prefix${jsonEncode(json)}';
   }
 
-  static StoredUserProfile? tryDecode(String? bio) {
+  static StoredUserProfile? tryDecodeProfileOnly(String? bio) {
     if (bio == null || bio.isEmpty || !bio.startsWith(_prefix)) {
       return null;
     }
@@ -26,7 +29,20 @@ final class ProfileBioCodec {
     return null;
   }
 
-  static Map<String, dynamic> profilePayload(StoredUserProfile profile) {
+  static Future<void> applyAppPrefsFromBio(String? bio) async {
+    if (bio == null || bio.isEmpty || !bio.startsWith(_prefix)) return;
+    try {
+      final json = jsonDecode(bio.substring(_prefix.length));
+      if (json is Map<String, dynamic>) {
+        final prefs = json[AppPreferencesCodec.prefsKey];
+        if (prefs is Map<String, dynamic>) {
+          await AppPreferencesCodec.importJson(prefs);
+        }
+      }
+    } catch (_) {}
+  }
+
+  static Future<Map<String, dynamic>> profilePayload(StoredUserProfile profile) async {
     final interests =
         profile.social?.interestIds ?? <String>[];
     final tags = <String>[
@@ -36,15 +52,17 @@ final class ProfileBioCodec {
         'education:${profile.social!.education}',
     ];
     return {
-      'bio': encode(profile),
+      'bio': await encode(profile),
       'interests': interests,
       'personalityTags': tags,
     };
   }
 
-  /// Sunucudan gelen profili yerel depoya yazar.
+  /// Sunucudan gelen profili yerel depoya yazar + ayarları uygular.
   static Future<void> applyRemoteToLocal(RemoteUser user) async {
-    final fromBio = tryDecode(user.profile?.bio);
+    await applyAppPrefsFromBio(user.profile?.bio);
+
+    final fromBio = tryDecodeProfileOnly(user.profile?.bio);
     if (fromBio != null) {
       await UserProfileStore.save(fromBio);
       return;

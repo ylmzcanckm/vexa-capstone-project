@@ -22,7 +22,7 @@ Branch: `dev`
 | 5 | Cihaz eşleme `POST /devices/pair` | Mobil + Sim web | ✅ |
 | 6 | BLE avatar → LilyGO (VX protokol) | **Mobil only** | Firmware |
 | 7 | Geçmiş `GET /matches/history` | Web + Mobil | ✅ |
-| 8 | Ayarlar (bildirim, gizlilik, tema…) | Yerel prefs | — |
+| 8 | Ayarlar (bildirim, gizlilik, tema, engelle…) | Web + Mobil | ✅ `profiles.bio` → `appPrefs` |
 | 9 | Logout / tekrar giriş profil sync | Web + Mobil | ✅ |
 
 ---
@@ -77,6 +77,6 @@ flutter run -d <device_id>
 ## Bilinen sınırlar (demo’da söyle)
 
 - Ghost mod backend’e yazılmaz (sadece UI)
-- Ayarlar cihazda kalır, sunucuda değil
+- Ayarlar `profiles.bio` içinde `appPrefs` JSON olarak sunucuda (geçici köprü)
 - Web’de BLE yok → simülasyon
 - Avatar LilyGO’da firmware gerektirir
