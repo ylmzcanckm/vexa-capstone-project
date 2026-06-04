@@ -1,12 +1,75 @@
 import 'package:flutter/material.dart';
+import 'package:vexa/core/storage/device_connection_preferences.dart';
+import 'package:vexa/core/storage/user_profile_store.dart';
 import 'package:vexa/core/theme/app_colors.dart';
+import 'package:vexa/features/device/data/ble_avatar_transfer_service.dart';
 
-/// BLE / cihaz ayarları (ses çipi yok — yalnızca titreşim, parlaklık, ekran).
-class BleDeviceSettingsScreen extends StatelessWidget {
+/// BLE / cihaz ayarları — bağlantı durumu + yerel tercihler (donanım sonra).
+class BleDeviceSettingsScreen extends StatefulWidget {
   const BleDeviceSettingsScreen({super.key});
 
-  static const _soon =
-      'Donanım ve BLE hazır olduğunda burası canlı veriyle dolar.';
+  @override
+  State<BleDeviceSettingsScreen> createState() => _BleDeviceSettingsScreenState();
+}
+
+class _BleDeviceSettingsScreenState extends State<BleDeviceSettingsScreen> {
+  final _ble = BleAvatarTransferService();
+  bool _linked = false;
+  bool _sending = false;
+  int _vibrationIndex = 1;
+  double _brightness = 0.5;
+  bool _autoBrightness = false;
+  int _screenTimeoutIndex = 1;
+
+  @override
+  void dispose() {
+    _ble.disconnect();
+    super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLinked();
+  }
+
+  Future<void> _loadLinked() async {
+    final linked = await DeviceConnectionPreferences.isLinked();
+    if (mounted) setState(() => _linked = linked);
+  }
+
+  Future<void> _resendAvatar() async {
+    final profile = await UserProfileStore.load();
+    if (profile == null || profile.avatarSeed.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Kayıtlı avatar yok.')),
+      );
+      return;
+    }
+
+    setState(() => _sending = true);
+    try {
+      final results = await _ble.scan(timeout: const Duration(seconds: 8));
+      if (results.isEmpty) {
+        throw Exception('VEXA cihazı bulunamadı.');
+      }
+      await _ble.connect(results.first.device);
+      await _ble.transferAvatarFromSeed(profile.avatarSeed);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Avatar cihaza gönderildi.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e')),
+      );
+    } finally {
+      await _ble.disconnect();
+      if (mounted) setState(() => _sending = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,11 +91,18 @@ class BleDeviceSettingsScreen extends StatelessWidget {
               padding: const EdgeInsets.all(14),
               child: Row(
                 children: [
-                  Icon(Icons.info_outline_rounded, color: AppColors.accent),
+                  Icon(
+                    _linked ? Icons.link_rounded : Icons.link_off_rounded,
+                    color: _linked ? AppColors.primary : muted,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      _soon,
+                      _linked
+                          ? 'Cihaz eşlemesi tamam (simülasyon). BLE canlı veri '
+                              'donanım hazır olunca burada görünecek.'
+                          : 'Henüz cihaz eşlenmedi. Ana akışta “Cihazı bağla” '
+                              'adımını tamamla.',
                       style: textTheme.bodySmall?.copyWith(
                         color: muted,
                         height: 1.35,
@@ -43,23 +113,36 @@ class BleDeviceSettingsScreen extends StatelessWidget {
               ),
             ),
           ),
+          if (BleAvatarTransferService.isSupported) ...[
+            FilledButton.icon(
+              onPressed: _sending ? null : _resendAvatar,
+              icon: const Icon(Icons.send_rounded),
+              label: Text(_sending ? 'Gönderiliyor…' : 'Avatarı cihaza yeniden gönder'),
+            ),
+            const SizedBox(height: 16),
+          ],
           const SizedBox(height: 20),
           _SectionTitle(text: 'Bağlı cihaz', textTheme: textTheme),
           const SizedBox(height: 8),
-          _tile(context, 'Pil seviyesi', '— %'),
-          _tile(context, 'Bağlantı durumu', 'Bağlı değil (yer tutucu)'),
-          _tile(context, 'Firmware sürümü', '—'),
-          _tile(context, 'Son senkronizasyon', '—'),
+          _tile('Pil seviyesi', _linked ? '— % (yakında)' : '—'),
+          _tile(
+            'Bağlantı durumu',
+            _linked ? 'Eşlendi (simülasyon)' : 'Bağlı değil',
+          ),
+          _tile('Firmware sürümü', '—'),
+          _tile('Son senkronizasyon', '—'),
           const SizedBox(height: 20),
           _SectionTitle(text: 'Titreşim', textTheme: textTheme),
           const SizedBox(height: 4),
           Text(
-            'Cihazda ses çipi yok; bildirimler yalnızca titreşim ile verilir.',
+            'Tercihler yerelde saklanır; cihaza yazma BLE ile gelecek.',
             style: textTheme.bodySmall?.copyWith(color: muted, height: 1.35),
           ),
           const SizedBox(height: 8),
           _ChoiceRow(
             labels: const ['Güçlü', 'Hafif', 'Kapalı'],
+            selectedIndex: _vibrationIndex,
+            onSelected: (i) => setState(() => _vibrationIndex = i),
             textTheme: textTheme,
             surface: surface,
             border: border,
@@ -69,19 +152,26 @@ class BleDeviceSettingsScreen extends StatelessWidget {
           const SizedBox(height: 8),
           SwitchListTile(
             title: const Text('Otomatik parlaklık'),
-            value: false,
-            onChanged: null,
+            value: _autoBrightness,
+            onChanged: (v) => setState(() => _autoBrightness = v),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            child: Text('Manuel slider', style: textTheme.labelMedium),
+            child: Text('Manuel', style: textTheme.labelMedium),
           ),
-          Slider(value: 0.5, onChanged: null),
+          Slider(
+            value: _brightness,
+            onChanged: _autoBrightness
+                ? null
+                : (v) => setState(() => _brightness = v),
+          ),
           const SizedBox(height: 20),
           _SectionTitle(text: 'Ekran zaman aşımı', textTheme: textTheme),
           const SizedBox(height: 8),
           _ChoiceRow(
             labels: const ['10 sn', '30 sn', 'Always on'],
+            selectedIndex: _screenTimeoutIndex,
+            onSelected: (i) => setState(() => _screenTimeoutIndex = i),
             textTheme: textTheme,
             surface: surface,
             border: border,
@@ -91,12 +181,11 @@ class BleDeviceSettingsScreen extends StatelessWidget {
     );
   }
 
-  Widget _tile(BuildContext context, String title, String value) {
+  Widget _tile(String title, String value) {
     return ListTile(
       title: Text(title),
       subtitle: Text(value),
       dense: true,
-      enabled: false,
     );
   }
 }
@@ -122,12 +211,16 @@ class _SectionTitle extends StatelessWidget {
 class _ChoiceRow extends StatelessWidget {
   const _ChoiceRow({
     required this.labels,
+    required this.selectedIndex,
+    required this.onSelected,
     required this.textTheme,
     required this.surface,
     required this.border,
   });
 
   final List<String> labels;
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
   final TextTheme textTheme;
   final Color surface;
   final Color border;
@@ -137,13 +230,16 @@ class _ChoiceRow extends StatelessWidget {
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: labels.map((l) {
-        return Chip(
-          label: Text(l, style: textTheme.labelLarge),
+      children: List.generate(labels.length, (i) {
+        final selected = i == selectedIndex;
+        return ChoiceChip(
+          label: Text(labels[i], style: textTheme.labelLarge),
+          selected: selected,
+          onSelected: (_) => onSelected(i),
           side: BorderSide(color: border),
           backgroundColor: surface,
         );
-      }).toList(),
+      }),
     );
   }
 }

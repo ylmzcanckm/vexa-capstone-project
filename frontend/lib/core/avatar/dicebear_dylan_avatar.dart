@@ -9,12 +9,13 @@ abstract final class DicebearDylanUri {
   static const storedKeyPrefix = 'vxg1|';
 
   static const _host = 'api.dicebear.com';
-  static const _path = '/9.x/dylan/svg';
+  static const _pathSvg = '/9.x/dylan/svg';
+  static const _pathPng = '/9.x/dylan/png';
 
   /// Yalnızca [seed] (DiceBear PRNG); eski kayıtlar için.
   static Uri svgLegacy(String seed, {int size = 256}) {
     final s = seed.trim().isEmpty ? 'vexa' : seed.trim();
-    return Uri.https(_host, _path, {
+    return Uri.https(_host, _pathSvg, {
       'seed': s,
       'size': '$size',
       'backgroundColor': 'transparent',
@@ -31,7 +32,7 @@ abstract final class DicebearDylanUri {
 
     final manual = DylanManualConfig.tryDeserialize(t);
     if (manual != null) {
-      return Uri.https(_host, _path, manual.toQueryMap(size: size));
+      return Uri.https(_host, _pathSvg, manual.toQueryMap(size: size));
     }
 
     if (t.startsWith(storedKeyPrefix)) {
@@ -46,11 +47,17 @@ abstract final class DicebearDylanUri {
             variant: safeVariant,
             size: size,
           );
-          return Uri.https(_host, _path, q);
+          return Uri.https(_host, _pathSvg, q);
         }
       }
     }
     return svgLegacy(t, size: size);
+  }
+
+  /// LilyGO ekranı için PNG (BLE aktarımı).
+  static Uri pngFromStoredKey(String storedKey, {int size = 128}) {
+    final svg = svgFromStoredKey(storedKey, size: size);
+    return Uri.https(_host, _pathPng, svg.queryParameters);
   }
 }
 

@@ -53,6 +53,10 @@
 	<string>Network profilinde görünecek fotoğrafı seçmek için galeri erişimi gerekir.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>İstersen kameradan profil fotoğrafı ekleyebilirsin.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>VEXA cihazına bağlanıp avatarını ekrana göndermek için Bluetooth gerekir.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>VEXA cihazına bağlanıp avatarını ekrana göndermek için Bluetooth gerekir.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
