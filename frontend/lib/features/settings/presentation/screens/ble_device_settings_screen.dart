@@ -3,6 +3,7 @@ import 'package:vexa/core/storage/device_connection_preferences.dart';
 import 'package:vexa/core/storage/user_profile_store.dart';
 import 'package:vexa/core/theme/app_colors.dart';
 import 'package:vexa/features/device/data/ble_avatar_transfer_service.dart';
+import 'package:vexa/features/device/data/device_repository.dart';
 
 /// BLE / cihaz ayarları — bağlantı durumu + yerel tercihler (donanım sonra).
 class BleDeviceSettingsScreen extends StatefulWidget {
@@ -16,6 +17,7 @@ class _BleDeviceSettingsScreenState extends State<BleDeviceSettingsScreen> {
   final _ble = BleAvatarTransferService();
   bool _linked = false;
   bool _sending = false;
+  String? _pairedDeviceName;
   int _vibrationIndex = 1;
   double _brightness = 0.5;
   bool _autoBrightness = false;
@@ -35,7 +37,18 @@ class _BleDeviceSettingsScreenState extends State<BleDeviceSettingsScreen> {
 
   Future<void> _loadLinked() async {
     final linked = await DeviceConnectionPreferences.isLinked();
-    if (mounted) setState(() => _linked = linked);
+    String? name;
+    try {
+      final remote = await DeviceRepository.fetchMyDevice();
+      final device = remote?['device'] as Map<String, dynamic>?;
+      name = device?['deviceName'] as String?;
+    } catch (_) {}
+    if (mounted) {
+      setState(() {
+        _linked = linked || name != null;
+        _pairedDeviceName = name;
+      });
+    }
   }
 
   Future<void> _resendAvatar() async {
@@ -127,7 +140,9 @@ class _BleDeviceSettingsScreenState extends State<BleDeviceSettingsScreen> {
           _tile('Pil seviyesi', _linked ? '— % (yakında)' : '—'),
           _tile(
             'Bağlantı durumu',
-            _linked ? 'Eşlendi (simülasyon)' : 'Bağlı değil',
+            _linked
+                ? (_pairedDeviceName ?? 'Eşlendi')
+                : 'Bağlı değil',
           ),
           _tile('Firmware sürümü', '—'),
           _tile('Son senkronizasyon', '—'),

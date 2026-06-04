@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:vexa/features/settings/presentation/screens/about_vexa_screen.dart';
+import 'package:vexa/features/settings/presentation/screens/accessibility_settings_screen.dart';
 import 'package:vexa/features/settings/presentation/screens/account_settings_screen.dart';
+import 'package:vexa/features/settings/presentation/screens/blocked_users_screen.dart';
 import 'package:vexa/features/settings/presentation/screens/ble_device_settings_screen.dart';
-import 'package:vexa/features/settings/presentation/screens/settings_placeholder_screen.dart';
+import 'package:vexa/features/settings/presentation/screens/device_finder_screen.dart';
+import 'package:vexa/features/settings/presentation/screens/notification_settings_screen.dart';
+import 'package:vexa/features/settings/presentation/screens/privacy_security_settings_screen.dart';
+import 'package:vexa/features/settings/presentation/screens/system_permissions_screen.dart';
 
 /// Ayarlar menüsü (profil ve modlar ana ekrandan yönetilir).
 class SettingsScreen extends StatelessWidget {
@@ -39,44 +44,26 @@ class SettingsScreen extends StatelessWidget {
           _MenuTile(
             icon: Icons.bluetooth_connected_rounded,
             title: 'Cihaz',
-            subtitle: 'BLE ve donanım',
+            subtitle: 'Bağlantı durumu ve donanım',
             onTap: () => _push(context, const BleDeviceSettingsScreen()),
           ),
           _MenuTile(
             icon: Icons.notifications_outlined,
             title: 'Bildirimler',
             subtitle: 'Push ve uygulama içi',
-            onTap: () => _push(
-              context,
-              const SettingsPlaceholderScreen(
-                title: 'Bildirimler',
-                subtitle: 'Kanal ve sıklık ayarları yakında.',
-              ),
-            ),
+            onTap: () => _push(context, const NotificationSettingsScreen()),
           ),
           _MenuTile(
             icon: Icons.shield_outlined,
             title: 'Gizlilik / güvenlik',
-            subtitle: 'Veri ve güvenlik',
-            onTap: () => _push(
-              context,
-              const SettingsPlaceholderScreen(
-                title: 'Gizlilik / güvenlik',
-                subtitle: 'Engelleme, görünürlük ve veri seçenekleri yakında.',
-              ),
-            ),
+            subtitle: 'Görünürlük ve KVKK',
+            onTap: () => _push(context, const PrivacySecuritySettingsScreen()),
           ),
           _MenuTile(
             icon: Icons.accessibility_new_rounded,
             title: 'Erişilebilirlik',
-            subtitle: 'Metin ve hareket',
-            onTap: () => _push(
-              context,
-              const SettingsPlaceholderScreen(
-                title: 'Erişilebilirlik',
-                subtitle: 'Yazı boyutu, kontrast ve hareket azaltma yakında.',
-              ),
-            ),
+            subtitle: 'Metin boyutu ve hareket',
+            onTap: () => _push(context, const AccessibilitySettingsScreen()),
           ),
           _MenuTile(
             icon: Icons.manage_accounts_outlined,
@@ -107,41 +94,20 @@ class SettingsScreen extends StatelessWidget {
           _MenuTile(
             icon: Icons.radar_rounded,
             title: 'Device Finder',
-            subtitle: "VEXA'yı bul",
-            onTap: () => _push(
-              context,
-              const SettingsPlaceholderScreen(
-                title: "VEXA'yı bul",
-                subtitle:
-                    'Cihazı yakında titreşim veya sinyal ile bulma özelliği burada olacak.',
-              ),
-            ),
+            subtitle: "VEXA cihazını bul (simülasyon)",
+            onTap: () => _push(context, const DeviceFinderScreen()),
           ),
           _MenuTile(
             icon: Icons.block_rounded,
             title: 'Engelle / gizle listesi',
-            subtitle: 'Kullanıcı engelle, tekrar görünme',
-            onTap: () => _push(
-              context,
-              const SettingsPlaceholderScreen(
-                title: 'Engelle / gizle',
-                subtitle: 'Engellenen kişiler ve eşleşme gizleme listesi yakında.',
-              ),
-            ),
+            subtitle: 'Yerel engelleme listesi',
+            onTap: () => _push(context, const BlockedUsersScreen()),
           ),
           _MenuTile(
             icon: Icons.app_settings_alt_outlined,
             title: 'Veri izinleri',
             subtitle: 'Bluetooth · Konum · Bildirim',
-            onTap: () => _push(
-              context,
-              const SettingsPlaceholderScreen(
-                title: 'Sistem izinleri',
-                subtitle:
-                    'Bluetooth, konum ve bildirim izinleri işletim sistemi '
-                    'ayarlarından yönetilir; uygulama içi yönlendirme burada eklenecek.',
-              ),
-            ),
+            onTap: () => _push(context, const SystemPermissionsScreen()),
           ),
         ],
       ),

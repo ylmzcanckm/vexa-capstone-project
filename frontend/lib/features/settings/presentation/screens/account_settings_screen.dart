@@ -1,16 +1,44 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:vexa/core/storage/local_session_store.dart';
 import 'package:vexa/core/theme/theme_mode_provider.dart';
-import 'package:vexa/features/auth/data/auth_repository.dart';
 import 'package:vexa/features/auth/presentation/screens/login_screen.dart';
+import 'package:vexa/features/settings/presentation/screens/kvkk_consent_screen.dart';
 
-/// Hesap: karanlık mod, KVKK, çıkış (şifre değiştirme yok).
+/// Hesap: karanlık mod, KVKK, çıkış.
 class AccountSettingsScreen extends ConsumerWidget {
   const AccountSettingsScreen({super.key});
 
-  void _soon(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Bu özellik yakında eklenecek.')),
+  Future<void> _confirmDeleteAccount(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Hesabı sil?'),
+        content: const Text(
+          'Yerel oturum ve profil verilerin silinir. Sunucudaki hesap '
+          'şimdilik kalır (backend silme API’si henüz yok). Devam edilsin mi?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('İptal'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sil ve çık'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    await LocalSessionStore.clearAllUserData();
+    if (!context.mounted) return;
+    Navigator.of(context).pushAndRemoveUntil<void>(
+      MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
+      (_) => false,
     );
   }
 
@@ -44,25 +72,31 @@ class AccountSettingsScreen extends ConsumerWidget {
               style: TextStyle(color: Colors.red.shade800, fontWeight: FontWeight.w600),
             ),
             subtitle: const Text(
-              'Kalıcı olarak sil; geri alınamaz (yakında).',
+              'Yerel veriyi temizler ve çıkış yapar',
               style: TextStyle(fontSize: 12),
             ),
             trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () => _soon(context),
+            onTap: () => _confirmDeleteAccount(context),
           ),
           const Divider(height: 32),
           ListTile(
             leading: const Icon(Icons.policy_outlined),
             title: const Text('KVKK onay formu bilgileri'),
             trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () => _soon(context),
+            onTap: () {
+              Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => const KvkkConsentScreen(),
+                ),
+              );
+            },
           ),
           const Divider(height: 32),
           ListTile(
             leading: Icon(Icons.logout_rounded, color: muted),
             title: const Text('Çıkış yap'),
             onTap: () async {
-              await AuthRepository.logout();
+              await LocalSessionStore.clearSession();
               if (!context.mounted) return;
               Navigator.of(context).pushAndRemoveUntil<void>(
                 MaterialPageRoute<void>(builder: (_) => const LoginScreen()),

@@ -23,6 +23,23 @@ class _ProfileCreationScreenState extends State<ProfileCreationScreen> {
   bool _submitting = false;
 
   @override
+  void initState() {
+    super.initState();
+    _prefillFromLocalProfile();
+  }
+
+  Future<void> _prefillFromLocalProfile() async {
+    final existing = await UserProfileStore.load();
+    if (!mounted || existing == null) return;
+    final parsedBirth = UserAge.tryParseIsoDate(existing.birthDateIso);
+    setState(() {
+      _nameController.text = existing.name;
+      _surnameController.text = existing.surname;
+      _birthDate = parsedBirth;
+    });
+  }
+
+  @override
   void dispose() {
     _nameController.dispose();
     _surnameController.dispose();

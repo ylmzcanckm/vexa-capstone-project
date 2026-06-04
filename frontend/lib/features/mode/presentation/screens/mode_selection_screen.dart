@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:vexa/core/api/api_exception.dart';
 import 'package:vexa/core/theme/vexa_theme_context.dart';
+import 'package:vexa/features/auth/data/user_repository.dart';
 import 'package:vexa/features/history/presentation/history_screen.dart';
 import 'package:vexa/features/mode/domain/vexa_mode.dart';
+import 'package:vexa/features/mode/domain/vexa_mode_api.dart';
 import 'package:vexa/features/mode/presentation/vexa_mode_style.dart';
 import 'package:vexa/features/mode/presentation/widgets/mode_profile_gate_tabs.dart';
 import 'package:vexa/features/profile/presentation/screens/profile_person_screen.dart';
@@ -20,6 +23,14 @@ class ModeSelectionScreen extends StatefulWidget {
 class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
   final PageController _pageController = PageController();
   int _pageIndex = 0;
+  String? _lastSyncedBackendMode;
+  bool _bootstrapping = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _bootstrapSelectedMode();
+  }
 
   @override
   void dispose() {
@@ -27,9 +38,59 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
     super.dispose();
   }
 
+  Future<void> _bootstrapSelectedMode() async {
+    try {
+      final user = await UserRepository.fetchMe();
+      final fromServer = VexaModeApi.fromBackend(user.settings?.selectedMode);
+      if (fromServer != null && mounted) {
+        final index = VexaMode.values.indexOf(fromServer);
+        if (index >= 0 && index != _pageIndex) {
+          _pageIndex = index;
+          _lastSyncedBackendMode = fromServer.backendMode;
+          if (_pageController.hasClients) {
+            _pageController.jumpToPage(index);
+          } else {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && _pageController.hasClients) {
+                _pageController.jumpToPage(index);
+              }
+            });
+          }
+        }
+      }
+    } catch (_) {
+      // Offline: varsayılan sosyal modda kal.
+    } finally {
+      if (mounted) setState(() => _bootstrapping = false);
+    }
+  }
+
+  Future<void> _syncModeToServer(VexaMode mode) async {
+    final backendMode = mode.backendMode;
+    if (backendMode == null || backendMode == _lastSyncedBackendMode) {
+      return;
+    }
+    try {
+      await UserRepository.setMode(backendMode);
+      _lastSyncedBackendMode = backendMode;
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Mod kaydedilemedi: ${e.message}')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Mod sunucuya yazılamadı.')),
+      );
+    }
+  }
+
   void _onPageChanged(int index) {
     setState(() => _pageIndex = index);
-    debugPrint('VexaMode: ${VexaMode.values[index]}');
+    final mode = VexaMode.values[index];
+    debugPrint('VexaMode: $mode');
+    _syncModeToServer(mode);
   }
 
   Future<void> _goToPage(int index) async {
@@ -49,6 +110,13 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
   Widget build(BuildContext context) {
     final topInset = MediaQuery.paddingOf(context).top;
     final vexa = context.vexa;
+
+    if (_bootstrapping) {
+      return Scaffold(
+        backgroundColor: vexa.scaffold,
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
 
     return Scaffold(
       backgroundColor: vexa.scaffold,

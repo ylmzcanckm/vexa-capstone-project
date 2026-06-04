@@ -6,7 +6,9 @@ import 'package:vexa/core/storage/user_profile_store.dart';
 import 'package:vexa/core/theme/app_colors.dart';
 import 'package:vexa/core/theme/vexa_theme_context.dart';
 import 'package:vexa/features/auth/data/user_repository.dart';
+import 'package:vexa/core/api/api_exception.dart';
 import 'package:vexa/features/device/data/ble_avatar_transfer_service.dart';
+import 'package:vexa/features/device/data/device_repository.dart';
 import 'package:vexa/features/mode/presentation/screens/mode_selection_screen.dart';
 import 'package:vexa/features/onboarding/presentation/screens/avatar_selection_screen.dart';
 import 'package:vexa/features/profile/presentation/screens/profile_creation_screen.dart';
@@ -97,6 +99,15 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
         },
       );
 
+      final deviceCode = 'BLE-${pick.device.remoteId.str}';
+      final deviceName = pick.device.platformName.isNotEmpty
+          ? pick.device.platformName
+          : 'VEXA LilyGO';
+      await DeviceRepository.pairDevice(
+        deviceCode: deviceCode,
+        deviceName: deviceName,
+      );
+
       await DeviceConnectionPreferences.setLinked(true);
       try {
         await UserRepository.syncFromServer();
@@ -118,6 +129,19 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
 
   Future<void> _simulateConnect() async {
     setState(() => _busy = true);
+    try {
+      await DeviceRepository.pairDevice(
+        deviceCode: 'VEXA-SIM-${DateTime.now().millisecondsSinceEpoch}',
+        deviceName: 'VEXA Simulator',
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Cihaz kaydı: ${e.message}')),
+      );
+      return;
+    }
     await DeviceConnectionPreferences.setLinked(true);
     try {
       await UserRepository.syncFromServer();
