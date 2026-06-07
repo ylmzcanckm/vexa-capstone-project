@@ -55,8 +55,8 @@ class DiscoveryFiltersSection extends ConsumerWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          'Yaş, cinsiyet, boy, kilo, eğitim (alt sınır) ve sigara/alkol tercihi. Cinsiyet, '
-          'eğitim veya madde filtrelerinde “tümü” bırakırsan o alan uygulanmaz.',
+          'Yaş, boy, kilo ve diğer tercihlerle kiminle tanışacağını belirle. '
+          'Boş bıraktığın filtreler uygulanmaz.',
           style: textTheme.bodySmall,
         ),
         const SizedBox(height: 16),
@@ -79,10 +79,10 @@ class DiscoveryFiltersSection extends ConsumerWidget {
         ),
         const SizedBox(height: 12),
         _FilterCard(
-          title: 'Cinsiyet',
+          title: 'Tanışmak istediğin cinsiyet',
           subtitle: s.selectedGenders.isEmpty
-              ? 'Filtre yok (tümü)'
-              : '${s.selectedGenders.length} seçim',
+              ? 'Hepsi'
+              : s.selectedGenders.join(', '),
           child: Padding(
             padding: const EdgeInsets.only(top: 8),
             child: Wrap(

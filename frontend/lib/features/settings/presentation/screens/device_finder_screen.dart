@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:vexa/core/storage/device_connection_preferences.dart';
 import 'package:vexa/core/theme/app_colors.dart';
+import 'package:vexa/features/device/data/device_link_state.dart';
+import 'package:vexa/features/device/data/device_repository.dart';
 
 class DeviceFinderScreen extends StatefulWidget {
   const DeviceFinderScreen({super.key});
@@ -11,7 +12,7 @@ class DeviceFinderScreen extends StatefulWidget {
 }
 
 class _DeviceFinderScreenState extends State<DeviceFinderScreen> {
-  bool _linked = false;
+  DeviceLinkState _link = const DeviceLinkState(hasServerPair: false);
   bool _searching = false;
 
   @override
@@ -21,15 +22,19 @@ class _DeviceFinderScreenState extends State<DeviceFinderScreen> {
   }
 
   Future<void> _load() async {
-    final linked = await DeviceConnectionPreferences.isLinked();
-    if (mounted) setState(() => _linked = linked);
+    try {
+      final remote = await DeviceRepository.fetchMyDevice();
+      if (mounted) {
+        setState(() => _link = DeviceLinkState.fromServer(remote));
+      }
+    } catch (_) {}
   }
 
   Future<void> _simulateFind() async {
-    if (!_linked) {
+    if (!_link.isLiveBlePaired) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Önce ana akışta cihaz eşlemesini tamamla.'),
+          content: Text('Önce Ayarlar → Cihaz → LilyGO\'ya bağlan.'),
         ),
       );
       return;
@@ -64,11 +69,13 @@ class _DeviceFinderScreenState extends State<DeviceFinderScreen> {
             Icon(
               Icons.radar_rounded,
               size: 72,
-              color: _linked ? AppColors.primary : muted,
+              color: _link.isLiveBlePaired ? AppColors.primary : muted,
             ),
             const SizedBox(height: 16),
             Text(
-              _linked ? 'Cihaz eşlemesi yapılmış' : 'Cihaz henüz eşlenmemiş',
+              _link.isLiveBlePaired
+                  ? 'LilyGO eşlemesi aktif'
+                  : 'Gerçek LilyGO eşlemesi yok',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),

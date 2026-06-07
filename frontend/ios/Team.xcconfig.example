@@ -1,0 +1,3 @@
+// Bu dosyayı kopyala:  cp Team.xcconfig.example Team.xcconfig
+// Team ID'yi Xcode → Settings → Accounts → Apple ID → Personal Team satırından al (10 karakter).
+DEVELOPMENT_TEAM=XXXXXXXXXX

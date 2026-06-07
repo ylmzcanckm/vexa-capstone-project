@@ -30,6 +30,15 @@ final class DeviceRepository {
     }
   }
 
+  static Future<void> unpairDevice() async {
+    try {
+      await ApiClient.delete('/devices/unpair', auth: true);
+    } on ApiException catch (e) {
+      if (e.statusCode == 404) return;
+      rethrow;
+    }
+  }
+
   static Future<Map<String, dynamic>?> fetchMyDevice() async {
     try {
       final json = await ApiClient.get('/devices/my-device', auth: true);

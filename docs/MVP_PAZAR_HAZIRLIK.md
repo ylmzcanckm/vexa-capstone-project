@@ -49,8 +49,10 @@ flutter run -d <device_id>
 ```
 
 - [ ] Bluetooth izni
-- [ ] Cihaz tara → seç → avatar gönder
-- [ ] LilyGO ekranda avatar (firmware hazırsa)
+- [ ] nRF Connect **kapalı**
+- [ ] Cihaz bağlantısı → otomatik tarama → **VEXA-B4DC** seçili → avatar gönder
+- [ ] LilyGO Serial: START / DATA / END / Ekrana basildi
+- [ ] Ayarlar → Cihaz → “Avatarı cihaza yeniden gönder” (2. test)
 - [ ] Simülasyon ile devam (firmware yoksa)
 
 ---

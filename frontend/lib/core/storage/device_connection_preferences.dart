@@ -1,18 +1,24 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// İleride gerçek BLE eşlemesi için bayrak (şimdilik simülasyon düğmesi set eder).
+/// Cihaz onboarding adımı (giriş sonrası BLE / simülasyon ekranı).
 final class DeviceConnectionPreferences {
   const DeviceConnectionPreferences._();
 
-  static const _keyLinked = 'vexa_device_linked';
+  static const _keyDeviceStepDone = 'vexa_device_onboarding_done';
 
-  static Future<bool> isLinked() async {
+  /// Kullanıcı “Cihaz bağlantısı” ekranını tamamladı mı?
+  static Future<bool> isDeviceStepComplete() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_keyLinked) ?? false;
+    return prefs.getBool(_keyDeviceStepDone) ?? false;
   }
 
-  static Future<void> setLinked(bool value) async {
+  static Future<void> setDeviceStepComplete(bool value) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_keyLinked, value);
+    await prefs.setBool(_keyDeviceStepDone, value);
   }
+
+  /// Eski kod uyumu — artık sadece onboarding adımı bayrağı.
+  static Future<bool> isLinked() => isDeviceStepComplete();
+
+  static Future<void> setLinked(bool value) => setDeviceStepComplete(value);
 }

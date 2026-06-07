@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:vexa/core/api/api_exception.dart';
 import 'package:vexa/core/storage/local_session_store.dart';
 import 'package:vexa/core/theme/theme_mode_provider.dart';
+import 'package:vexa/features/auth/data/user_repository.dart';
 import 'package:vexa/features/auth/presentation/screens/login_screen.dart';
+import 'package:vexa/features/device/data/device_repository.dart';
 import 'package:vexa/features/settings/presentation/screens/kvkk_consent_screen.dart';
 
-/// Hesap: karanlık mod, KVKK, çıkış.
+/// Hesap: karanlık mod, KVKK, hesap silme, çıkış.
 class AccountSettingsScreen extends ConsumerWidget {
   const AccountSettingsScreen({super.key});
 
@@ -15,8 +18,8 @@ class AccountSettingsScreen extends ConsumerWidget {
       builder: (ctx) => AlertDialog(
         title: const Text('Hesabı sil?'),
         content: const Text(
-          'Yerel oturum ve profil verilerin silinir. Sunucudaki hesap '
-          'şimdilik kalır (backend silme API’si henüz yok). Devam edilsin mi?',
+          'Hesabın sunucudan kalıcı olarak silinir. Profil, eşleşmeler ve '
+          'cihaz kayıtları kaldırılır. Bu işlem geri alınamaz.',
         ),
         actions: [
           TextButton(
@@ -28,12 +31,33 @@ class AccountSettingsScreen extends ConsumerWidget {
               backgroundColor: Colors.red.shade700,
             ),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Sil ve çık'),
+            child: const Text('Hesabı sil'),
           ),
         ],
       ),
     );
     if (ok != true || !context.mounted) return;
+
+    try {
+      await DeviceRepository.unpairDevice();
+    } catch (_) {}
+
+    try {
+      await UserRepository.deleteAccount();
+    } on ApiException catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Hesap silinemedi: ${e.message}')),
+      );
+      return;
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Bağlantı hatası: $e')),
+      );
+      return;
+    }
+
     await LocalSessionStore.clearAllUserData();
     if (!context.mounted) return;
     Navigator.of(context).pushAndRemoveUntil<void>(
@@ -72,7 +96,7 @@ class AccountSettingsScreen extends ConsumerWidget {
               style: TextStyle(color: Colors.red.shade800, fontWeight: FontWeight.w600),
             ),
             subtitle: const Text(
-              'Yerel veriyi temizler ve çıkış yapar',
+              'Hesabı ve tüm verilerini kalıcı olarak siler',
               style: TextStyle(fontSize: 12),
             ),
             trailing: const Icon(Icons.chevron_right_rounded),

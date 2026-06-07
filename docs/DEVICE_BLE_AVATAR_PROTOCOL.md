@@ -12,6 +12,7 @@
 |-----|------|
 | Service | `12345678-1234-5678-1234-56789abcdef0` |
 | Avatar write | `12345678-1234-5678-1234-56789abcdef1` |
+| Saat (TIME_SYNC) | `12345678-1234-5678-1234-56789abcdef2` |
 
 Özellik: **Write** veya **Write Without Response**.
 
@@ -45,6 +46,38 @@ Tüm paketler: `0x56 0x58` (`V` `X`) magic ile başlar.
 ```
 
 Cihaz buffer’ı tamamlayınca LCD’ye çizer.
+
+### Saat (`...def2`) — telefon saati
+
+**Flutter (tek format — 7 byte):**
+
+```text
+[hour u8][minute u8][second u8][unix u32 LE]
+```
+
+- Saat **telefonun yerel saati** (17:52 gibi).
+- Gönderim: bağlantıda, avatar END sonrası, bağlantı açıkken 30 sn aralıkla.
+
+**Firmware (Can güncellemesi):** Aşağıdakilerin ikisini de kabul etmeli:
+
+1. Ham 7 byte (Flutter’ın gönderdiği)
+2. Yedek VX 11 byte: `[V][X][0x04][hour][minute][second][flags][unix u32 LE]`
+
+> Eski test formatı `[V][X][0x10][hour][minute][second]` (6 byte) — kaldırılacak / geriye dönük destek isteğe bağlı.
+
+Saat sağ panelde telefonla aynı görünmeli; dakika firmware `loop()` veya unix’ten ilerlemeli.
+
+---
+
+## LilyGO UI (uygulama ile uyum)
+
+| Öğe | Uygulama | Flutter bitmap | Firmware |
+|-----|----------|----------------|----------|
+| Avatar zemini | `#95A3B3` koyu gri | ✅ gönderilir | — |
+| Dış halka | mavi→mor (`#119FF2` → `#E05AFF`) | ✅ statik halka bitmap’te | **Döndürme** `flags&1` ile `loop()` |
+| Saat | telefon | ham 7-byte `def2` | `drawClock()` + unix/RTC |
+
+Saat: Flutter ham paket gönderir; firmware `0x10` test formatından 7-byte’a geçince eşleşir.
 
 ---
 

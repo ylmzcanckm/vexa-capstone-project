@@ -6,7 +6,6 @@ import 'package:vexa/core/storage/user_profile_store.dart';
 import 'package:vexa/core/theme/app_colors.dart';
 import 'package:vexa/core/theme/vexa_theme_context.dart';
 import 'package:vexa/features/auth/data/user_repository.dart';
-import 'package:vexa/core/api/api_exception.dart';
 import 'package:vexa/features/device/data/ble_avatar_transfer_service.dart';
 import 'package:vexa/features/device/data/device_repository.dart';
 import 'package:vexa/features/mode/presentation/screens/mode_selection_screen.dart';
@@ -18,9 +17,13 @@ class DeviceConnectionScreen extends StatefulWidget {
   const DeviceConnectionScreen({
     super.key,
     required this.loginScreenBuilder,
+    this.reconnectOnly = false,
   });
 
   final Widget Function() loginScreenBuilder;
+
+  /// Ayarlardan açıldıysa onboarding akışını atlama — sadece geri dön.
+  final bool reconnectOnly;
 
   @override
   State<DeviceConnectionScreen> createState() => _DeviceConnectionScreenState();
@@ -32,6 +35,14 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
   String? _status;
   List<ScanResult> _scanResults = [];
   ScanResult? _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    if (BleAvatarTransferService.isSupported) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scan());
+    }
+  }
 
   @override
   void dispose() {
@@ -48,19 +59,32 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
     });
     try {
       final results = await _ble.scan();
+      final best = BleAvatarTransferService.pickBestVexaDevice(results);
       if (!mounted) return;
       setState(() {
         _scanResults = results;
+        _selected = best;
         _status = results.isEmpty
             ? 'Cihaz bulunamadı. LilyGO açık ve yakında mı?'
-            : '${results.length} cihaz bulundu';
+            : best != null
+                ? 'Hazır: ${BleAvatarTransferService.displayName(best.device)}'
+                : '${results.length} cihaz — birini seç';
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _status = '$e');
+      setState(() => _status = _friendlyBleError('$e'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  static String _friendlyBleError(String raw) {
+    if (raw.contains('bluetooth must be turned on') ||
+        raw.contains('CBManagerState')) {
+      return 'Bluetooth kapalı. Ayarlardan aç ve tekrar dene.';
+    }
+    if (raw.contains('izni')) return raw;
+    return raw;
   }
 
   Future<void> _connectAndSendAvatar() async {
@@ -89,7 +113,7 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
     try {
       await _ble.connect(pick.device);
       if (!mounted) return;
-      setState(() => _status = 'Avatar hazırlanıyor ve gönderiliyor…');
+      setState(() => _status = 'Avatar gönderiliyor…');
 
       await _ble.transferAvatarFromSeed(
         profile.avatarSeed,
@@ -99,21 +123,30 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
         },
       );
 
-      final deviceCode = 'BLE-${pick.device.remoteId.str}';
-      final deviceName = pick.device.platformName.isNotEmpty
-          ? pick.device.platformName
-          : 'VEXA LilyGO';
+      if (!mounted) return;
+      setState(() => _status = 'Saat ayarlanıyor…');
+      final clockErr = await _ble.syncDeviceClock();
+      if (clockErr != null) {
+        throw Exception('Saat gönderilemedi: $clockErr');
+      }
+      await Future<void>.delayed(const Duration(seconds: 3));
+
+      final deviceCode = BleAvatarTransferService.pairCodeFor(pick.device);
+      final deviceName = BleAvatarTransferService.displayName(pick.device);
       await DeviceRepository.pairDevice(
         deviceCode: deviceCode,
         deviceName: deviceName,
       );
 
-      await DeviceConnectionPreferences.setLinked(true);
+      await DeviceConnectionPreferences.setDeviceStepComplete(true);
       try {
         await UserRepository.syncFromServer();
       } catch (_) {}
 
       if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cihaz bağlandı.')),
+      );
       await _finishOnboarding();
     } catch (e) {
       if (!mounted) return;
@@ -127,31 +160,20 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
     }
   }
 
-  Future<void> _simulateConnect() async {
-    setState(() => _busy = true);
-    try {
-      await DeviceRepository.pairDevice(
-        deviceCode: 'VEXA-SIM-${DateTime.now().millisecondsSinceEpoch}',
-        deviceName: 'VEXA Simulator',
-      );
-    } on ApiException catch (e) {
+  Future<void> _finishOnboarding() async {
+    if (widget.reconnectOnly) {
       if (!mounted) return;
-      setState(() => _busy = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Cihaz kaydı: ${e.message}')),
+      Navigator.of(context).pop(true);
+      return;
+    }
+
+    if (await OnboardingPreferences.isComplete()) {
+      if (!mounted) return;
+      await Navigator.of(context).pushReplacement<void, void>(
+        MaterialPageRoute<void>(builder: (_) => const ModeSelectionScreen()),
       );
       return;
     }
-    await DeviceConnectionPreferences.setLinked(true);
-    try {
-      await UserRepository.syncFromServer();
-    } catch (_) {}
-    if (!mounted) return;
-    setState(() => _busy = false);
-    await _finishOnboarding();
-  }
-
-  Future<void> _finishOnboarding() async {
     final profile = await UserProfileStore.load();
     final hasCore = profile != null &&
         profile.name.isNotEmpty &&
@@ -173,12 +195,6 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
     );
   }
 
-  void _backToLogin() {
-    Navigator.of(context).pushReplacement<void, void>(
-      MaterialPageRoute<void>(builder: (_) => widget.loginScreenBuilder()),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
@@ -186,12 +202,12 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
     final bleOk = BleAvatarTransferService.isSupported;
 
     return PopScope(
-      canPop: false,
+      canPop: widget.reconnectOnly,
       child: Scaffold(
         backgroundColor: vexa.scaffold,
         appBar: AppBar(
           title: const Text('Cihaz bağlantısı'),
-          automaticallyImplyLeading: false,
+          automaticallyImplyLeading: widget.reconnectOnly,
         ),
         body: SafeArea(
           child: Padding(
@@ -200,15 +216,14 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'VEXA cihazını bağla',
+                  'LilyGO\'nu bağla',
                   style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Text(
                   bleOk
-                      ? 'Avatarın DiceBear PNG olarak indirilir, RGB565\'e çevrilir '
-                          've BLE ile LilyGO ekranına yazılır.'
-                      : 'Web sürümünde BLE yok; mobil uygulamada dene veya simülasyon kullan.',
+                      ? 'Cihazını aç, telefonun yakınında tut ve bağlan.'
+                      : 'BLE yalnızca mobil uygulamada çalışır.',
                   style: textTheme.bodyMedium?.copyWith(
                     color: vexa.textSecondary,
                     height: 1.4,
@@ -222,18 +237,18 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
                   ),
                 ],
                 if (bleOk) ...[
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
                   OutlinedButton.icon(
                     onPressed: _busy ? null : _scan,
                     icon: const Icon(Icons.bluetooth_searching_rounded),
-                    label: const Text('Bluetooth cihaz ara'),
+                    label: Text(_busy ? 'Aranıyor…' : 'Tekrar ara'),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   Expanded(
                     child: _scanResults.isEmpty
                         ? Center(
                             child: Text(
-                              'Arama sonrası cihazlar burada listelenir.',
+                              _busy ? 'Cihaz aranıyor…' : 'Henüz cihaz bulunamadı',
                               textAlign: TextAlign.center,
                               style: TextStyle(color: vexa.textSecondary),
                             ),
@@ -247,13 +262,16 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
                                   : r.device.remoteId.str;
                               final selected = _selected == r;
                               return Card(
+                                margin: const EdgeInsets.only(bottom: 8),
                                 color: selected
                                     ? AppColors.primary.withValues(alpha: 0.12)
                                     : vexa.surface,
                                 child: ListTile(
-                                  leading: const Icon(Icons.bluetooth_rounded),
+                                  leading: Icon(
+                                    Icons.watch_rounded,
+                                    color: selected ? AppColors.primary : vexa.textSecondary,
+                                  ),
                                   title: Text(name),
-                                  subtitle: Text('RSSI ${r.rssi} dBm'),
                                   trailing: selected
                                       ? const Icon(Icons.check_circle_rounded,
                                           color: AppColors.primary)
@@ -282,28 +300,17 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
                               color: Colors.white,
                             ),
                           )
-                        : const Text('Bağlan ve avatarı gönder'),
+                        : const Text('Bağlan'),
                   ),
                 ] else ...[
                   const Spacer(),
-                  FilledButton(
-                    onPressed: _busy ? null : _simulateConnect,
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(52),
-                    ),
-                    child: const Text('Simülasyon ile devam et'),
+                  Text(
+                    'Bu sürümde cihaz bağlantısı desteklenmiyor.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: vexa.textSecondary),
                   ),
+                  const Spacer(),
                 ],
-                const SizedBox(height: 8),
-                if (bleOk)
-                  TextButton(
-                    onPressed: _busy ? null : _simulateConnect,
-                    child: const Text('Simülasyon (avatar göndermeden)'),
-                  ),
-                TextButton(
-                  onPressed: _busy ? null : _backToLogin,
-                  child: const Text('Giriş ekranına dön'),
-                ),
               ],
             ),
           ),

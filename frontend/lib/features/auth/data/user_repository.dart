@@ -85,4 +85,9 @@ final class UserRepository {
   static Future<void> setMode(String mode) async {
     await ApiClient.put('/users/me/mode', body: {'mode': mode});
   }
+
+  /// Sunucudaki hesabı ve ilişkili veriyi siler.
+  static Future<void> deleteAccount() async {
+    await ApiClient.delete('/users/me', auth: true);
+  }
 }

@@ -15,10 +15,12 @@ final class BleAvatarTransferService {
   BleAvatarTransferService();
 
   BluetoothDevice? _device;
+  Timer? _clockSyncTimer;
 
   static bool get isSupported => !kIsWeb;
 
-  Future<List<ScanResult>> scan({Duration timeout = const Duration(seconds: 10)}) async {
+  /// LilyGO / VEXA cihazlarını tara (önce servis UUID, sonra genel tarama).
+  Future<List<ScanResult>> scan({Duration timeout = const Duration(seconds: 12)}) async {
     if (!isSupported) {
       throw UnsupportedError('BLE yalnızca mobil/masaüstü uygulamada desteklenir.');
     }
@@ -32,26 +34,52 @@ final class BleAvatarTransferService {
       throw Exception('Bu cihaz Bluetooth LE desteklemiyor.');
     }
 
-    final results = <String, ScanResult>{};
+    final merged = <String, ScanResult>{};
+
+    await _runScan(
+      timeout: timeout,
+      withServices: [VexaBleConfig.serviceUuid],
+      into: merged,
+    );
+
+    if (merged.isEmpty) {
+      await _runScan(timeout: timeout, into: merged);
+    }
+
+    return _sortResults(merged.values.toList());
+  }
+
+  Future<void> _runScan({
+    required Duration timeout,
+    required Map<String, ScanResult> into,
+    List<Guid>? withServices,
+  }) async {
     final sub = FlutterBluePlus.scanResults.listen((list) {
       for (final r in list) {
-        results[r.device.remoteId.str] = r;
+        into[r.device.remoteId.str] = r;
       }
     });
 
-    await FlutterBluePlus.startScan(timeout: timeout);
-    await Future<void>.delayed(timeout);
-    await FlutterBluePlus.stopScan();
-    await sub.cancel();
+    try {
+      await FlutterBluePlus.startScan(
+        timeout: timeout,
+        withServices: withServices ?? [],
+      );
+      await Future<void>.delayed(timeout);
+    } finally {
+      await FlutterBluePlus.stopScan();
+      await sub.cancel();
+    }
+  }
 
-    final sorted = results.values.toList()
+  static List<ScanResult> _sortResults(List<ScanResult> list) {
+    return list
       ..sort((a, b) {
         final ah = _nameHintRank(a.device.platformName);
         final bh = _nameHintRank(b.device.platformName);
         if (ah != bh) return bh.compareTo(ah);
         return b.rssi.compareTo(a.rssi);
       });
-    return sorted;
   }
 
   static int _nameHintRank(String name) {
@@ -64,20 +92,61 @@ final class BleAvatarTransferService {
     return 0;
   }
 
+  /// En uygun VEXA cihazını seç (öncelik: `VEXA-B4DC`).
+  static ScanResult? pickBestVexaDevice(List<ScanResult> results) {
+    if (results.isEmpty) return null;
+
+    final preferred = VexaBleConfig.preferredDeviceName.toUpperCase();
+    for (final r in results) {
+      if (r.device.platformName.toUpperCase().contains(preferred)) {
+        return r;
+      }
+    }
+
+    for (final r in results) {
+      if (_nameHintRank(r.device.platformName) > 0) {
+        return r;
+      }
+    }
+
+    return results.first;
+  }
+
+  static String displayName(BluetoothDevice device) {
+    return device.platformName.isNotEmpty
+        ? device.platformName
+        : device.remoteId.str;
+  }
+
+  static String pairCodeFor(BluetoothDevice device) {
+    final name = device.platformName.trim();
+    if (name.isNotEmpty) return name;
+    return 'BLE-${device.remoteId.str}';
+  }
+
   Future<void> connect(BluetoothDevice device) async {
     _device = device;
-    await device.connect(timeout: const Duration(seconds: 15));
+    await device.connect(
+      timeout: const Duration(seconds: 20),
+      autoConnect: false,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 300));
     await device.discoverServices();
     try {
       await device.requestMtu(512);
     } catch (_) {}
+    await syncDeviceClock();
+    _startClockSyncTimer();
   }
 
   Future<void> disconnect() async {
+    _stopClockSyncTimer();
     final d = _device;
     _device = null;
     if (d != null) {
-      await d.disconnect();
+      try {
+        await d.disconnect();
+      } catch (_) {}
     }
   }
 
@@ -109,31 +178,117 @@ final class BleAvatarTransferService {
     }
 
     await _write(characteristic, BleAvatarProtocol.buildEnd());
+    await syncDeviceClock();
+  }
+
+  /// Telefon saatini cihaza gönderir (`...def2`, ham 7-byte paket).
+  Future<String?> syncDeviceClock({DateTime? localTime}) async {
+    final device = _device;
+    if (device == null) return 'BLE bağlantısı yok';
+
+    try {
+      final characteristic = await _findClockCharacteristic(device);
+      await _write(
+        characteristic,
+        BleAvatarProtocol.buildRawClock(localTime ?? DateTime.now()),
+      );
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  void _startClockSyncTimer() {
+    _stopClockSyncTimer();
+    _clockSyncTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      unawaited(syncDeviceClock());
+    });
+  }
+
+  void _stopClockSyncTimer() {
+    _clockSyncTimer?.cancel();
+    _clockSyncTimer = null;
+  }
+
+  /// Tara → en iyi VEXA → bağlan → avatar gönder.
+  Future<String> scanConnectAndTransfer(
+    String avatarSeed, {
+    AvatarTransferProgress? onProgress,
+    Duration scanTimeout = const Duration(seconds: 12),
+  }) async {
+    final results = await scan(timeout: scanTimeout);
+    final pick = pickBestVexaDevice(results);
+    if (pick == null) {
+      throw Exception(
+        'VEXA cihazı bulunamadı. LilyGO açık mı? nRF Connect kapalı mı?',
+      );
+    }
+
+    await connect(pick.device);
+    try {
+      await transferAvatarFromSeed(avatarSeed, onProgress: onProgress);
+      final clockErr = await syncDeviceClock();
+      if (clockErr != null) {
+        throw Exception('Saat gönderilemedi: $clockErr');
+      }
+      // Firmware'in paketi işlemesi için bağlantıyı kısa süre açık tut.
+      await Future<void>.delayed(const Duration(seconds: 3));
+      return displayName(pick.device);
+    } finally {
+      await disconnect();
+    }
+  }
+
+  Future<BluetoothCharacteristic> _findClockCharacteristic(
+    BluetoothDevice device,
+  ) async {
+    for (final service in device.servicesList) {
+      if (!_uuidMatches(service.uuid, VexaBleConfig.serviceUuid)) continue;
+      for (final c in service.characteristics) {
+        if (_uuidMatches(c.uuid, VexaBleConfig.clockCharacteristicUuid)) {
+          return c;
+        }
+      }
+    }
+
+    final chars = <String>[];
+    for (final service in device.servicesList) {
+      for (final c in service.characteristics) {
+        chars.add(c.uuid.str);
+      }
+    }
+    throw Exception(
+      'Saat characteristic bulunamadı (${VexaBleConfig.clockCharacteristicUuid}). '
+      'Bulunan: ${chars.isEmpty ? "yok" : chars.join(", ")}',
+    );
+  }
+
+  static bool _uuidMatches(Guid actual, Guid expected) {
+    final a = actual.str.toLowerCase();
+    final e = expected.str.toLowerCase();
+    if (a == e) return true;
+    final suffix = e.split('-').last;
+    return a.endsWith(suffix);
   }
 
   Future<BluetoothCharacteristic> _findAvatarCharacteristic(
     BluetoothDevice device,
   ) async {
     for (final service in device.servicesList) {
-      if (service.uuid != VexaBleConfig.serviceUuid) continue;
+      if (!_uuidMatches(service.uuid, VexaBleConfig.serviceUuid)) continue;
       for (final c in service.characteristics) {
-        if (c.uuid == VexaBleConfig.avatarCharacteristicUuid) {
+        if (_uuidMatches(c.uuid, VexaBleConfig.avatarCharacteristicUuid)) {
           return c;
         }
       }
     }
 
-    // Fallback: herhangi bir yazılabilir karakteristik (geliştirme)
-    for (final service in device.servicesList) {
-      for (final c in service.characteristics) {
-        if (c.properties.write || c.properties.writeWithoutResponse) {
-          return c;
-        }
-      }
-    }
-
+    final found = device.servicesList
+        .map((s) => s.uuid.str)
+        .join(', ');
     throw Exception(
-      'Avatar characteristic bulunamadı. Firmware UUID’leri kontrol et.',
+      'Avatar characteristic bulunamadı (${VexaBleConfig.avatarCharacteristicUuid}). '
+      'Bulunan servisler: ${found.isEmpty ? "yok" : found}',
     );
   }
 
@@ -146,6 +301,7 @@ final class BleAvatarTransferService {
     } else {
       await characteristic.write(data, withoutResponse: false);
     }
-    await Future<void>.delayed(const Duration(milliseconds: 15));
+    // ESP32 BLE buffer için kısa bekleme
+    await Future<void>.delayed(const Duration(milliseconds: 22));
   }
 }

@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:vexa/core/storage/device_connection_preferences.dart';
-import 'package:vexa/core/storage/user_profile_store.dart';
 import 'package:vexa/core/theme/app_colors.dart';
+import 'package:vexa/features/auth/presentation/screens/login_screen.dart';
 import 'package:vexa/features/device/data/ble_avatar_transfer_service.dart';
+import 'package:vexa/features/device/data/device_link_state.dart';
 import 'package:vexa/features/device/data/device_repository.dart';
+import 'package:vexa/features/device/presentation/screens/device_connection_screen.dart';
 
-/// BLE / cihaz ayarları — bağlantı durumu + yerel tercihler (donanım sonra).
+/// BLE / cihaz ayarları — sade görünüm.
 class BleDeviceSettingsScreen extends StatefulWidget {
   const BleDeviceSettingsScreen({super.key});
 
@@ -14,74 +15,44 @@ class BleDeviceSettingsScreen extends StatefulWidget {
 }
 
 class _BleDeviceSettingsScreenState extends State<BleDeviceSettingsScreen> {
-  final _ble = BleAvatarTransferService();
-  bool _linked = false;
-  bool _sending = false;
-  String? _pairedDeviceName;
+  DeviceLinkState _link = const DeviceLinkState(hasServerPair: false);
+  bool _loading = true;
   int _vibrationIndex = 1;
   double _brightness = 0.5;
   bool _autoBrightness = false;
   int _screenTimeoutIndex = 1;
 
   @override
-  void dispose() {
-    _ble.disconnect();
-    super.dispose();
-  }
-
-  @override
   void initState() {
     super.initState();
-    _loadLinked();
+    _load();
   }
 
-  Future<void> _loadLinked() async {
-    final linked = await DeviceConnectionPreferences.isLinked();
-    String? name;
+  Future<void> _load() async {
+    setState(() => _loading = true);
     try {
       final remote = await DeviceRepository.fetchMyDevice();
-      final device = remote?['device'] as Map<String, dynamic>?;
-      name = device?['deviceName'] as String?;
-    } catch (_) {}
-    if (mounted) {
+      if (!mounted) return;
       setState(() {
-        _linked = linked || name != null;
-        _pairedDeviceName = name;
+        _link = DeviceLinkState.fromServer(remote);
+        _loading = false;
       });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loading = false);
     }
   }
 
-  Future<void> _resendAvatar() async {
-    final profile = await UserProfileStore.load();
-    if (profile == null || profile.avatarSeed.isEmpty) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Kayıtlı avatar yok.')),
-      );
-      return;
-    }
-
-    setState(() => _sending = true);
-    try {
-      final results = await _ble.scan(timeout: const Duration(seconds: 8));
-      if (results.isEmpty) {
-        throw Exception('VEXA cihazı bulunamadı.');
-      }
-      await _ble.connect(results.first.device);
-      await _ble.transferAvatarFromSeed(profile.avatarSeed);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Avatar cihaza gönderildi.')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e')),
-      );
-    } finally {
-      await _ble.disconnect();
-      if (mounted) setState(() => _sending = false);
-    }
+  Future<void> _openDeviceConnection() async {
+    final ok = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => DeviceConnectionScreen(
+          loginScreenBuilder: () => const LoginScreen(),
+          reconnectOnly: true,
+        ),
+      ),
+    );
+    if (ok == true) await _load();
   }
 
   @override
@@ -90,69 +61,36 @@ class _BleDeviceSettingsScreenState extends State<BleDeviceSettingsScreen> {
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
     final surface = Theme.of(context).colorScheme.surface;
     final border = Theme.of(context).dividerColor;
+    final liveBle = _link.isLiveBlePaired;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Cihaz ayarları'),
-      ),
+      appBar: AppBar(title: const Text('Cihaz ayarları')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
         children: [
-          Card(
-            margin: EdgeInsets.zero,
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Row(
-                children: [
-                  Icon(
-                    _linked ? Icons.link_rounded : Icons.link_off_rounded,
-                    color: _linked ? AppColors.primary : muted,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      _linked
-                          ? 'Cihaz eşlemesi tamam (simülasyon). BLE canlı veri '
-                              'donanım hazır olunca burada görünecek.'
-                          : 'Henüz cihaz eşlenmedi. Ana akışta “Cihazı bağla” '
-                              'adımını tamamla.',
-                      style: textTheme.bodySmall?.copyWith(
-                        color: muted,
-                        height: 1.35,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          _StatusCard(
+            loading: _loading,
+            liveBle: liveBle,
+            deviceName: _link.deviceName ?? _link.deviceCode,
+            hasPair: _link.hasServerPair,
+            muted: muted,
+            textTheme: textTheme,
           ),
-          if (BleAvatarTransferService.isSupported) ...[
-            FilledButton.icon(
-              onPressed: _sending ? null : _resendAvatar,
-              icon: const Icon(Icons.send_rounded),
-              label: Text(_sending ? 'Gönderiliyor…' : 'Avatarı cihaza yeniden gönder'),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: _loading ? null : _openDeviceConnection,
+            icon: Icon(liveBle ? Icons.bluetooth_connected_rounded : Icons.bluetooth_searching_rounded),
+            label: Text(liveBle ? 'Yeniden bağlan' : 'LilyGO\'ya bağlan'),
+          ),
+          if (liveBle) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Avatar değiştirdiğinde cihaza otomatik gönderilir.',
+              style: textTheme.bodySmall?.copyWith(color: muted, height: 1.35),
             ),
-            const SizedBox(height: 16),
           ],
-          const SizedBox(height: 20),
-          _SectionTitle(text: 'Bağlı cihaz', textTheme: textTheme),
-          const SizedBox(height: 8),
-          _tile('Pil seviyesi', _linked ? '— % (yakında)' : '—'),
-          _tile(
-            'Bağlantı durumu',
-            _linked
-                ? (_pairedDeviceName ?? 'Eşlendi')
-                : 'Bağlı değil',
-          ),
-          _tile('Firmware sürümü', '—'),
-          _tile('Son senkronizasyon', '—'),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
           _SectionTitle(text: 'Titreşim', textTheme: textTheme),
-          const SizedBox(height: 4),
-          Text(
-            'Tercihler yerelde saklanır; cihaza yazma BLE ile gelecek.',
-            style: textTheme.bodySmall?.copyWith(color: muted, height: 1.35),
-          ),
           const SizedBox(height: 8),
           _ChoiceRow(
             labels: const ['Güçlü', 'Hafif', 'Kapalı'],
@@ -164,43 +102,106 @@ class _BleDeviceSettingsScreenState extends State<BleDeviceSettingsScreen> {
           ),
           const SizedBox(height: 20),
           _SectionTitle(text: 'Parlaklık', textTheme: textTheme),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           SwitchListTile(
-            title: const Text('Otomatik parlaklık'),
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Otomatik'),
             value: _autoBrightness,
             onChanged: (v) => setState(() => _autoBrightness = v),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            child: Text('Manuel', style: textTheme.labelMedium),
-          ),
           Slider(
             value: _brightness,
-            onChanged: _autoBrightness
-                ? null
-                : (v) => setState(() => _brightness = v),
+            onChanged: _autoBrightness ? null : (v) => setState(() => _brightness = v),
           ),
-          const SizedBox(height: 20),
-          _SectionTitle(text: 'Ekran zaman aşımı', textTheme: textTheme),
+          const SizedBox(height: 16),
+          _SectionTitle(text: 'Ekran kapanma', textTheme: textTheme),
           const SizedBox(height: 8),
           _ChoiceRow(
-            labels: const ['10 sn', '30 sn', 'Always on'],
+            labels: const ['10 sn', '30 sn', 'Sürekli'],
             selectedIndex: _screenTimeoutIndex,
             onSelected: (i) => setState(() => _screenTimeoutIndex = i),
             textTheme: textTheme,
             surface: surface,
             border: border,
           ),
+          if (!BleAvatarTransferService.isSupported) ...[
+            const SizedBox(height: 16),
+            Text(
+              'Donanım ayarları mobil uygulamada kullanılabilir.',
+              style: textTheme.bodySmall?.copyWith(color: muted),
+            ),
+          ],
         ],
       ),
     );
   }
+}
 
-  Widget _tile(String title, String value) {
-    return ListTile(
-      title: Text(title),
-      subtitle: Text(value),
-      dense: true,
+class _StatusCard extends StatelessWidget {
+  const _StatusCard({
+    required this.loading,
+    required this.liveBle,
+    required this.deviceName,
+    required this.hasPair,
+    required this.muted,
+    required this.textTheme,
+  });
+
+  final bool loading;
+  final bool liveBle;
+  final String? deviceName;
+  final bool hasPair;
+  final Color muted;
+  final TextTheme textTheme;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = loading
+        ? 'Yükleniyor…'
+        : liveBle
+            ? deviceName ?? 'LilyGO'
+            : hasPair
+                ? deviceName ?? 'Kayıtlı cihaz'
+                : 'Bağlı değil';
+
+    final subtitle = loading
+        ? ''
+        : liveBle
+            ? 'Bağlantı aktif'
+            : hasPair
+                ? 'LilyGO ile yeniden bağlan'
+                : 'Cihazını eşle';
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Icon(
+              liveBle ? Icons.watch_rounded : Icons.bluetooth_disabled_rounded,
+              color: liveBle ? AppColors.primary : muted,
+              size: 28,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  if (subtitle.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(subtitle, style: textTheme.bodySmall?.copyWith(color: muted)),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

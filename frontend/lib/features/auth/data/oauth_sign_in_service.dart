@@ -1,25 +1,45 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:vexa/core/api/api_exception.dart';
 import 'package:vexa/core/config/app_config.dart';
-
 /// Google / Apple native oturum açma.
 final class OAuthSignInService {
   const OAuthSignInService._();
 
   static GoogleSignIn get _google {
+    const scopes = ['email', 'openid'];
+
     if (kIsWeb) {
       return GoogleSignIn(
         clientId: AppConfig.googleWebClientId,
-        scopes: const ['email', 'openid'],
+        scopes: scopes,
       );
     }
 
+    if (Platform.isIOS) {
+      final iosId = AppConfig.googleIosClientId;
+      if (iosId.isEmpty) {
+        throw const ApiException(
+          'iOS Google Client ID eksik. Google Cloud Console\'da iOS OAuth '
+          'oluştur (Bundle: com.selcukbuyukpoyraz.vexa), ID\'yi '
+          'app_config.dart → googleIosClientId alanına yaz ve '
+          'tool/sync_google_ios_plist.sh çalıştır.',
+        );
+      }
+      return GoogleSignIn(
+        clientId: iosId,
+        serverClientId: AppConfig.googleWebClientId,
+        scopes: scopes,
+      );
+    }
+
+    // Android: clientId genelde google-services.json; backend için serverClientId.
     return GoogleSignIn(
-      clientId: AppConfig.googleWebClientId,
       serverClientId: AppConfig.googleWebClientId,
-      scopes: const ['email', 'openid'],
+      scopes: scopes,
     );
   }
 

@@ -62,7 +62,7 @@ class SettingsScreen extends StatelessWidget {
           _MenuTile(
             icon: Icons.accessibility_new_rounded,
             title: 'Erişilebilirlik',
-            subtitle: 'Metin boyutu ve hareket',
+            subtitle: 'Metin boyutu',
             onTap: () => _push(context, const AccessibilitySettingsScreen()),
           ),
           _MenuTile(

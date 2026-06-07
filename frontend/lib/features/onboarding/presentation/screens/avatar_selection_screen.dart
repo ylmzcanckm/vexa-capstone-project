@@ -9,6 +9,7 @@ import 'package:vexa/core/storage/user_profile_store.dart';
 import 'package:vexa/features/auth/data/user_repository.dart';
 import 'package:vexa/core/theme/app_colors.dart';
 import 'package:vexa/core/theme/vexa_theme_context.dart';
+import 'package:vexa/features/device/data/device_avatar_auto_sync.dart';
 import 'package:vexa/features/mode/presentation/screens/mode_selection_screen.dart';
 
 /// [DiceBear Dylan](https://www.dicebear.com/styles/dylan/) — HTTP API, tasarım CC BY 4.0 (atıf).
@@ -140,6 +141,17 @@ class _AvatarSelectionScreenState extends State<AvatarSelectionScreen> {
     }
     if (!mounted) return;
     if (widget.standaloneEdit) {
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Avatar kaydedildi. Cihaza gönderiliyor…')),
+      );
+      final deviceName = await DeviceAvatarAutoSync.syncIfPaired(seed);
+      if (!mounted) return;
+      if (deviceName != null) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('Avatar $deviceName cihazına gönderildi.')),
+        );
+      }
       Navigator.of(context).pop(true);
       return;
     }

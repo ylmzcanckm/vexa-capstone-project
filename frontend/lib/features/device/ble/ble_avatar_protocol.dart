@@ -38,6 +38,19 @@ final class BleAvatarProtocol {
 
   static Uint8List buildEnd() => Uint8List.fromList([magic1, magic2, opEnd]);
 
+  /// `def2` saat paketi: `[hour][minute][second][unix u32 LE]` (7 byte).
+  static Uint8List buildRawClock(DateTime local) {
+    final unix = local.millisecondsSinceEpoch ~/ 1000;
+    final b = BytesBuilder();
+    b.add([
+      local.hour & 0xFF,
+      local.minute & 0xFF,
+      local.second & 0xFF,
+    ]);
+    b.add(_u32(unix));
+    return b.toBytes();
+  }
+
   static List<Uint8List> splitDataChunks(Uint8List rgb565) {
     final max = VexaBleConfig.maxChunkPayload;
     final chunks = <Uint8List>[];

@@ -214,4 +214,38 @@ router.put("/me/mode", authMiddleware, async (req, res) => {
   }
 });
 
+router.delete("/me", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    await db.query("DELETE FROM user_device_pairings WHERE user_id = $1", [
+      userId
+    ]);
+
+    const result = await db.query(
+      "DELETE FROM users WHERE id = $1 RETURNING id",
+      [userId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    res.json({
+      success: true,
+      message: "Account deleted"
+    });
+  } catch (error) {
+    console.error("Failed to delete user:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to delete account"
+    });
+  }
+});
+
 module.exports = router;

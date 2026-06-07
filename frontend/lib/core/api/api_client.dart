@@ -57,6 +57,20 @@ final class ApiClient {
     );
   }
 
+  static Future<Map<String, dynamic>> delete(
+    String path, {
+    bool auth = true,
+  }) async {
+    return _decode(
+      await http
+          .delete(
+            AppConfig.uri(path),
+            headers: await _headers(auth: auth),
+          )
+          .timeout(_timeout),
+    );
+  }
+
   static Future<Map<String, String>> _headers({required bool auth}) async {
     final headers = <String, String>{
       'Content-Type': 'application/json',

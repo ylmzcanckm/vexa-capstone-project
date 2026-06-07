@@ -48,13 +48,6 @@ class AccessibilitySettingsScreen extends ConsumerWidget {
             value: settings.boldText,
             onChanged: notifier.setBoldText,
           ),
-          SwitchListTile(
-            secondary: const Icon(Icons.motion_photos_off_outlined),
-            title: const Text('Hareketi azalt'),
-            subtitle: const Text('Animasyonları sadeleştirir'),
-            value: settings.reduceMotion,
-            onChanged: notifier.setReduceMotion,
-          ),
         ],
       ),
     );

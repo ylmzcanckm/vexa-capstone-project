@@ -31,21 +31,18 @@ class NotificationSettingsScreen extends ConsumerWidget {
           SwitchListTile(
             secondary: const Icon(Icons.notifications_active_outlined),
             title: const Text('Push bildirimleri'),
-            subtitle: const Text('Eşleşme ve sistem uyarıları'),
             value: settings.pushEnabled,
             onChanged: notifier.setPush,
           ),
           SwitchListTile(
             secondary: const Icon(Icons.chat_bubble_outline_rounded),
             title: const Text('Uygulama içi bildirimler'),
-            subtitle: const Text('Snackbar ve kart bildirimleri'),
             value: settings.inAppEnabled,
             onChanged: notifier.setInApp,
           ),
           SwitchListTile(
             secondary: const Icon(Icons.favorite_border_rounded),
             title: const Text('Eşleşme uyarıları'),
-            subtitle: const Text('Yeni eşleşme veya aday bulunduğunda'),
             value: settings.matchAlertsEnabled,
             onChanged: notifier.setMatchAlerts,
           ),

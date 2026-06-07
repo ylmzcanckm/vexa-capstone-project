@@ -39,6 +39,9 @@ app.*.symbols
 # Obfuscation related
 app.*.map.json
 
+# iOS signing (kişisel Team ID — repoya commit etme)
+ios/Team.xcconfig
+
 # Android Studio will place build artifacts here
 /android/app/debug
 /android/app/profile
