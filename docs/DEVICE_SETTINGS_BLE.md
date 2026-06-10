@@ -20,6 +20,7 @@ Magic: `V` `X` — avatar/saat ile tutarlı.
 | `0x02` | `0–100` | Parlaklık (manuel) |
 | `0x03` | `0`/`1` | Otomatik parlaklık açık/kapalı |
 | `0x04` | `10`, `30`, `255` | Ekran zaman aşımı (sn; 255 = always on) |
+| `0x05` | `1` | **VEXA Finder** tek seferlik titreşim pulse (yakınlık uyarısı) |
 
 **Firmware pseudocode:**
 

@@ -92,9 +92,9 @@ class SettingsScreen extends StatelessWidget {
             ),
           ),
           _MenuTile(
-            icon: Icons.radar_rounded,
-            title: 'Device Finder',
-            subtitle: "VEXA cihazını bul (simülasyon)",
+            icon: Icons.sensors_rounded,
+            title: 'VEXA Finder',
+            subtitle: 'Yakınlık eşleşme uyarısı (demo)',
             onTap: () => _push(context, const DeviceFinderScreen()),
           ),
           _MenuTile(

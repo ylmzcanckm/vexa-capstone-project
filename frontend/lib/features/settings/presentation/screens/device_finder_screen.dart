@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:vexa/core/theme/app_colors.dart';
 import 'package:vexa/features/device/data/device_link_state.dart';
 import 'package:vexa/features/device/data/device_repository.dart';
+import 'package:vexa/features/finder/data/vexa_finder_service.dart';
 
+/// VEXA Finder — yakınlık eşleşme uyarısı (mavi-mor tam ekran + titreşim).
 class DeviceFinderScreen extends StatefulWidget {
   const DeviceFinderScreen({super.key});
 
@@ -13,7 +14,6 @@ class DeviceFinderScreen extends StatefulWidget {
 
 class _DeviceFinderScreenState extends State<DeviceFinderScreen> {
   DeviceLinkState _link = const DeviceLinkState(hasServerPair: false);
-  bool _searching = false;
 
   @override
   void initState() {
@@ -30,52 +30,34 @@ class _DeviceFinderScreenState extends State<DeviceFinderScreen> {
     } catch (_) {}
   }
 
-  Future<void> _simulateFind() async {
-    if (!_link.isLiveBlePaired) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Önce Ayarlar → Cihaz → LilyGO\'ya bağlan.'),
-        ),
-      );
-      return;
-    }
-    setState(() => _searching = true);
-    for (var i = 0; i < 3; i++) {
-      await HapticFeedback.mediumImpact();
-      await Future<void>.delayed(const Duration(milliseconds: 400));
-    }
-    if (!mounted) return;
-    setState(() => _searching = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Simülasyon: cihaz bulundu. Gerçek BLE sinyali donanım ile gelecek.',
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
 
     return Scaffold(
-      appBar: AppBar(title: const Text("VEXA'yı bul")),
+      appBar: AppBar(title: const Text('VEXA Finder')),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Icon(
-              Icons.radar_rounded,
-              size: 72,
-              color: _link.isLiveBlePaired ? AppColors.primary : muted,
+            Container(
+              height: 120,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                gradient: AppColors.brandGradient,
+              ),
+              child: const Center(
+                child: Icon(
+                  Icons.sensors_rounded,
+                  size: 56,
+                  color: Colors.white,
+                ),
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             Text(
-              _link.isLiveBlePaired
-                  ? 'LilyGO eşlemesi aktif'
-                  : 'Gerçek LilyGO eşlemesi yok',
+              'Yakınlık eşleşmesi',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
@@ -83,25 +65,37 @@ class _DeviceFinderScreenState extends State<DeviceFinderScreen> {
             ),
             const SizedBox(height: 12),
             Text(
-              'Bu ekran, kayıp VEXA cihazını titreşim veya BLE sinyali ile '
-              'bulmak içindir. Donanım hazır olunca gerçek tarama burada çalışacak.',
+              'Uyumlu biri ~15 m yakına gelince LilyGO titreşir ve telefonda '
+              'mavi-mor tam ekran uyarı açılır. Titreşim motoru firmware ile '
+              'aktif olunca otomatik çalışacak.',
               style: TextStyle(color: muted, height: 1.45),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _link.isLiveBlePaired
+                  ? 'LilyGO eşlemesi: aktif'
+                  : 'LilyGO eşlemesi: yok (uyarı yine telefonda çalışır)',
+              style: TextStyle(
+                color: _link.isLiveBlePaired ? AppColors.primary : muted,
+                fontWeight: FontWeight.w600,
+              ),
               textAlign: TextAlign.center,
             ),
             const Spacer(),
             FilledButton.icon(
-              onPressed: _searching ? null : _simulateFind,
-              icon: _searching
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.vibration_rounded),
-              label: Text(_searching ? 'Aranıyor…' : 'Cihazı bul (simülasyon)'),
+              onPressed: () => VexaFinderService.simulateProximityMatch(context),
+              icon: const Icon(Icons.play_arrow_rounded),
+              label: const Text('Uyarıyı dene (demo)'),
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(52),
               ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Gerçek sürümde BLE yakınlık servisi bu ekranı otomatik açar.',
+              style: TextStyle(fontSize: 12, color: muted),
+              textAlign: TextAlign.center,
             ),
           ],
         ),
