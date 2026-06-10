@@ -455,6 +455,7 @@ class _AvatarCircle extends StatelessWidget {
               ? Padding(
                   padding: const EdgeInsets.all(8),
                   child: DicebearDylanAvatar(
+                    key: ValueKey(avatarSeed),
                     seed: avatarSeed,
                     size: 88,
                     contrastBackdrop: false,

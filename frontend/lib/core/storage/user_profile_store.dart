@@ -224,6 +224,7 @@ final class StoredUserProfile {
     this.avatarSeed = '',
     this.social,
     this.business,
+    this.quizAnswers = const {},
   });
 
   final String name;
@@ -235,15 +236,39 @@ final class StoredUserProfile {
   final SocialProfileData? social;
   final BusinessProfileData? business;
 
+  /// İlgi alanı id → soru id → `a` | `b`
+  final Map<String, Map<String, String>> quizAnswers;
+
   Map<String, dynamic> toJson() => {
-        'v': 2,
+        'v': 3,
         'name': name,
         'surname': surname,
         'birthDateIso': birthDateIso,
         'avatarSeed': avatarSeed,
         'social': social?.toJson(),
         'business': business?.toJson(),
+        if (quizAnswers.isNotEmpty)
+          'quizAnswers': quizAnswers.map(
+            (k, v) => MapEntry(k, Map<String, String>.from(v)),
+          ),
       };
+
+  static Map<String, Map<String, String>> _quizFromJson(
+    Map<String, dynamic> j,
+  ) {
+    final raw = j['quizAnswers'];
+    if (raw is! Map<String, dynamic>) return {};
+    final out = <String, Map<String, String>>{};
+    for (final entry in raw.entries) {
+      final inner = entry.value;
+      if (inner is Map<String, dynamic>) {
+        out[entry.key] = inner.map(
+          (k, v) => MapEntry(k.toString(), v.toString()),
+        );
+      }
+    }
+    return out;
+  }
 
   factory StoredUserProfile.fromJson(Map<String, dynamic> j) {
     final v = j['v'] as int? ?? 1;
@@ -263,6 +288,7 @@ final class StoredUserProfile {
         business: j['business'] is Map<String, dynamic>
             ? BusinessProfileData.fromJson(j['business'] as Map<String, dynamic>)
             : null,
+        quizAnswers: _quizFromJson(j),
       );
     }
     return StoredUserProfile(
@@ -294,6 +320,7 @@ final class StoredUserProfile {
     String? avatarSeed,
     SocialProfileData? social,
     BusinessProfileData? business,
+    Map<String, Map<String, String>>? quizAnswers,
     bool clearSocial = false,
     bool clearBusiness = false,
   }) {
@@ -304,6 +331,7 @@ final class StoredUserProfile {
       avatarSeed: avatarSeed ?? this.avatarSeed,
       social: clearSocial ? null : (social ?? this.social),
       business: clearBusiness ? null : (business ?? this.business),
+      quizAnswers: quizAnswers ?? this.quizAnswers,
     );
   }
 }

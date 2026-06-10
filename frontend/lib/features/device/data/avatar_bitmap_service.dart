@@ -24,7 +24,14 @@ final class AvatarBitmapService {
     String avatarSeed, {
     int size = VexaBleConfig.avatarPixelSize,
   }) async {
-    final uri = DicebearDylanUri.pngFromStoredKey(avatarSeed, size: size);
+    final base = DicebearDylanUri.pngFromStoredKey(avatarSeed, size: size);
+    // Aynı seed ile yeniden gönderimde önbelleği atla.
+    final uri = base.replace(
+      queryParameters: {
+        ...base.queryParameters,
+        't': '${DateTime.now().millisecondsSinceEpoch}',
+      },
+    );
     final response = await http.get(uri);
     if (response.statusCode != 200) {
       throw Exception('Avatar PNG indirilemedi (${response.statusCode})');

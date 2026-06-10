@@ -29,8 +29,6 @@ class AvatarSelectionScreen extends StatefulWidget {
 class _AvatarSelectionScreenState extends State<AvatarSelectionScreen> {
   late DylanManualConfig _config;
   String? _legacySeed;
-  /// vxg1 diskten yüklendiyse, düzenleme yokken aynı satırı saklamak için.
-  String? _persistExactVxg1;
   bool _loading = true;
 
   static const _moodLabels = <String, String>{
@@ -60,12 +58,10 @@ class _AvatarSelectionScreenState extends State<AvatarSelectionScreen> {
 
   String get _previewKey {
     if (_legacySeed != null) return _legacySeed!;
-    if (_persistExactVxg1 != null) return _persistExactVxg1!;
     return _config.serialize();
   }
 
   void _onManualChange() {
-    _persistExactVxg1 = null;
     if (_legacySeed != null) {
       _legacySeed = null;
     }
@@ -84,7 +80,6 @@ class _AvatarSelectionScreenState extends State<AvatarSelectionScreen> {
     final stored = p?.avatarSeed ?? '';
     DylanManualConfig config;
     String? legacy;
-    String? persistExactVxg1;
 
     final manual = DylanManualConfig.tryDeserialize(stored);
     if (manual != null) {
@@ -97,7 +92,6 @@ class _AvatarSelectionScreenState extends State<AvatarSelectionScreen> {
         config = basis.isNotEmpty
             ? DylanManualConfig.fromVxg1Row(basis, v)
             : DylanManualConfig.defaults();
-        persistExactVxg1 = stored;
       } else {
         config = DylanManualConfig.defaults();
       }
@@ -112,7 +106,6 @@ class _AvatarSelectionScreenState extends State<AvatarSelectionScreen> {
     setState(() {
       _config = config;
       _legacySeed = legacy;
-      _persistExactVxg1 = persistExactVxg1;
       _loading = false;
     });
   }
@@ -122,7 +115,8 @@ class _AvatarSelectionScreenState extends State<AvatarSelectionScreen> {
     if (!mounted) return;
     final core = p ??
         const StoredUserProfile(name: '', surname: '', birthDateIso: '');
-    final seed = _persistExactVxg1 ?? _legacySeed ?? _config.serialize();
+    // Güncel düzenlemeyi kaydet — eski vxg1 anahtarına takılı kalma.
+    final seed = _legacySeed ?? _config.serialize();
     final updated = core.copyWith(avatarSeed: seed);
     await UserProfileStore.save(updated);
     try {
@@ -145,15 +139,28 @@ class _AvatarSelectionScreenState extends State<AvatarSelectionScreen> {
       messenger.showSnackBar(
         const SnackBar(content: Text('Avatar kaydedildi. Cihaza gönderiliyor…')),
       );
-      final deviceName = await DeviceAvatarAutoSync.syncIfPaired(seed);
+      final sync = await DeviceAvatarAutoSync.pushToDevice(seed);
       if (!mounted) return;
-      if (deviceName != null) {
+      if (sync.deviceName != null) {
         messenger.showSnackBar(
-          SnackBar(content: Text('Avatar $deviceName cihazına gönderildi.')),
+          SnackBar(content: Text('Avatar ${sync.deviceName} cihazına gönderildi.')),
+        );
+      } else if (sync.error != null) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('Cihaza gönderilemedi: ${sync.error}')),
         );
       }
       Navigator.of(context).pop(true);
       return;
+    }
+
+    // Onboarding sonrası da eşli cihaz varsa gönder.
+    final onboardingSync = await DeviceAvatarAutoSync.pushToDevice(seed);
+    if (!mounted) return;
+    if (onboardingSync.deviceName != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Avatar ${onboardingSync.deviceName} cihazına gönderildi.')),
+      );
     }
     await OnboardingPreferences.setComplete(true);
     if (!mounted) return;

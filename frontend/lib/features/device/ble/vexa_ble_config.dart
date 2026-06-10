@@ -6,9 +6,13 @@ abstract final class VexaBleConfig {
   static final Guid avatarCharacteristicUuid =
       Guid('12345678-1234-5678-1234-56789abcdef1');
 
-  /// Saat senkronu (TIME_SYNC paketi) — firmware: Can.
+  /// Saat senkronu — `def2`.
   static final Guid clockCharacteristicUuid =
       Guid('12345678-1234-5678-1234-56789abcdef2');
+
+  /// Donanım ayarları (parlaklık, titreşim, ekran) — `def3`.
+  static final Guid settingsCharacteristicUuid =
+      Guid('12345678-1234-5678-1234-56789abcdef3');
 
   /// Firmware reklam adı (nRF Connect ile doğrulanmış).
   static const preferredDeviceName = 'VEXA-B4DC';

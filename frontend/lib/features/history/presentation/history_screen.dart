@@ -4,6 +4,7 @@ import 'package:vexa/core/api/models/match_models.dart';
 import 'package:vexa/core/theme/vexa_palette.dart';
 import 'package:vexa/core/theme/vexa_theme_context.dart';
 import 'package:vexa/features/matching/data/match_repository.dart';
+import 'package:vexa/features/matching/presentation/screens/match_candidates_screen.dart';
 
 /// Eşleşme geçmişi — `GET /matches/history`.
 class HistoryScreen extends StatefulWidget {
@@ -73,6 +74,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
         title: const Text('Geçmiş'),
         actions: [
           IconButton(
+            onPressed: () {
+              Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => const MatchCandidatesScreen(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.people_outline_rounded),
+            tooltip: 'Adaylar',
+          ),
+          IconButton(
             onPressed: _loading ? null : _load,
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Yenile',
@@ -113,10 +125,27 @@ class _HistoryScreenState extends State<HistoryScreen> {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
-          child: Text(
-            'Henüz eşleşme geçmişin yok.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: vexa.textSecondary, fontSize: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Henüz eşleşme geçmişin yok.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: vexa.textSecondary, fontSize: 16),
+              ),
+              const SizedBox(height: 20),
+              FilledButton.icon(
+                onPressed: () {
+                  Navigator.of(context).push<void>(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const MatchCandidatesScreen(),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.people_outline_rounded),
+                label: const Text('Adayları gör'),
+              ),
+            ],
           ),
         ),
       );

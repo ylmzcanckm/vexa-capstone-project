@@ -1,3 +1,78 @@
+/// GET /matches/candidates öğesi.
+final class RemoteMatchCandidate {
+  const RemoteMatchCandidate({
+    required this.id,
+    required this.email,
+    required this.fullName,
+    this.selectedMode,
+    this.interests = const [],
+    this.profileBio,
+  });
+
+  final String id;
+  final String email;
+  final String fullName;
+  final String? selectedMode;
+  final List<String> interests;
+
+  /// Quiz cevapları `bio` JSON içinde (`quizAnswers`).
+  final String? profileBio;
+
+  factory RemoteMatchCandidate.fromJson(Map<String, dynamic> j) {
+    final profile = j['profile'] as Map<String, dynamic>?;
+    final settings = j['settings'] as Map<String, dynamic>?;
+    return RemoteMatchCandidate(
+      id: j['id'] as String? ?? '',
+      email: j['email'] as String? ?? '',
+      fullName: j['fullName'] as String? ?? '',
+      selectedMode: settings?['selectedMode'] as String?,
+      interests: (profile?['interests'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
+      profileBio: profile?['bio'] as String?,
+    );
+  }
+
+  String get displayName {
+    if (fullName.trim().isNotEmpty) return fullName.trim();
+    if (email.isNotEmpty) return email.split('@').first;
+    return 'Kullanıcı';
+  }
+}
+
+/// POST /matches/check yanıtı.
+final class RemoteMatchCheckResult {
+  const RemoteMatchCheckResult({
+    required this.id,
+    required this.matchScore,
+    required this.status,
+    required this.commonInterests,
+    required this.sameMode,
+  });
+
+  final String id;
+  final int matchScore;
+  final String status;
+  final List<String> commonInterests;
+  final bool sameMode;
+
+  bool get isMatch => status == 'detected' || matchScore >= 50;
+
+  factory RemoteMatchCheckResult.fromJson(Map<String, dynamic> j) {
+    return RemoteMatchCheckResult(
+      id: j['id'] as String? ?? '',
+      matchScore: (j['matchScore'] as num?)?.toInt() ?? 0,
+      status: j['status'] as String? ?? '',
+      commonInterests: (j['commonInterests'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
+      sameMode: j['sameMode'] as bool? ?? false,
+    );
+  }
+}
+
 /// GET /matches/history öğesi.
 final class RemoteMatchHistoryItem {
   const RemoteMatchHistoryItem({

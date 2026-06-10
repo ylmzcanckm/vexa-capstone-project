@@ -11,6 +11,28 @@ final class BleAvatarProtocol {
   static const opStart = 0x01;
   static const opData = 0x02;
   static const opEnd = 0x03;
+  static const opSettings = 0x20;
+
+  static const settingVibration = 0x01;
+  static const settingBrightness = 0x02;
+  static const settingAutoBrightness = 0x03;
+  static const settingScreenTimeout = 0x04;
+
+  /// `def3`: `[V][X][0x20][setting][value][flags]`
+  static Uint8List buildDeviceSetting({
+    required int setting,
+    required int value,
+    int flags = 0,
+  }) {
+    return Uint8List.fromList([
+      magic1,
+      magic2,
+      opSettings,
+      setting & 0xFF,
+      value & 0xFF,
+      flags & 0xFF,
+    ]);
+  }
 
   static Uint8List buildStart({
     required int width,

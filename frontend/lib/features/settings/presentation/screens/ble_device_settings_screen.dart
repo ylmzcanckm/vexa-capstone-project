@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:vexa/core/storage/device_settings_preferences.dart';
 import 'package:vexa/core/theme/app_colors.dart';
 import 'package:vexa/features/auth/presentation/screens/login_screen.dart';
 import 'package:vexa/features/device/data/ble_avatar_transfer_service.dart';
@@ -6,7 +9,7 @@ import 'package:vexa/features/device/data/device_link_state.dart';
 import 'package:vexa/features/device/data/device_repository.dart';
 import 'package:vexa/features/device/presentation/screens/device_connection_screen.dart';
 
-/// BLE / cihaz ayarları — sade görünüm.
+/// BLE / cihaz ayarları — `def3` donanım senkronu.
 class BleDeviceSettingsScreen extends StatefulWidget {
   const BleDeviceSettingsScreen({super.key});
 
@@ -15,12 +18,13 @@ class BleDeviceSettingsScreen extends StatefulWidget {
 }
 
 class _BleDeviceSettingsScreenState extends State<BleDeviceSettingsScreen> {
+  final _ble = BleAvatarTransferService();
   DeviceLinkState _link = const DeviceLinkState(hasServerPair: false);
+  DeviceSettingsValues _settings = const DeviceSettingsValues();
   bool _loading = true;
-  int _vibrationIndex = 1;
-  double _brightness = 0.5;
-  bool _autoBrightness = false;
-  int _screenTimeoutIndex = 1;
+  bool _syncing = false;
+  String? _syncStatus;
+  Timer? _brightnessDebounce;
 
   @override
   void initState() {
@@ -28,13 +32,22 @@ class _BleDeviceSettingsScreenState extends State<BleDeviceSettingsScreen> {
     _load();
   }
 
+  @override
+  void dispose() {
+    _brightnessDebounce?.cancel();
+    _ble.disconnect();
+    super.dispose();
+  }
+
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
       final remote = await DeviceRepository.fetchMyDevice();
+      final prefs = await DeviceSettingsPreferences.load();
       if (!mounted) return;
       setState(() {
         _link = DeviceLinkState.fromServer(remote);
+        _settings = prefs;
         _loading = false;
       });
     } catch (_) {
@@ -55,6 +68,44 @@ class _BleDeviceSettingsScreenState extends State<BleDeviceSettingsScreen> {
     if (ok == true) await _load();
   }
 
+  Future<void> _applySettings(DeviceSettingsValues next) async {
+    setState(() => _settings = next);
+    await DeviceSettingsPreferences.save(next);
+
+    if (!_link.isLiveBlePaired || !BleAvatarTransferService.isSupported) {
+      return;
+    }
+
+    setState(() {
+      _syncing = true;
+      _syncStatus = 'Cihaza gönderiliyor…';
+    });
+
+    try {
+      final err = await _ble.scanConnectAndSyncSettings(next);
+      if (!mounted) return;
+      setState(() {
+        _syncing = false;
+        _syncStatus = err == null ? 'Cihaza uygulandı' : 'Gönderilemedi: $err';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _syncing = false;
+        _syncStatus = 'Hata: $e';
+      });
+    }
+  }
+
+  void _onBrightnessChanged(double value) {
+    final next = _settings.copyWith(brightness: value);
+    setState(() => _settings = next);
+    _brightnessDebounce?.cancel();
+    _brightnessDebounce = Timer(const Duration(milliseconds: 400), () {
+      unawaited(_applySettings(next));
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
@@ -62,6 +113,7 @@ class _BleDeviceSettingsScreenState extends State<BleDeviceSettingsScreen> {
     final surface = Theme.of(context).colorScheme.surface;
     final border = Theme.of(context).dividerColor;
     final liveBle = _link.isLiveBlePaired;
+    final canSync = liveBle && BleAvatarTransferService.isSupported;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Cihaz ayarları')),
@@ -78,7 +130,7 @@ class _BleDeviceSettingsScreenState extends State<BleDeviceSettingsScreen> {
           ),
           const SizedBox(height: 12),
           FilledButton.icon(
-            onPressed: _loading ? null : _openDeviceConnection,
+            onPressed: _loading || _syncing ? null : _openDeviceConnection,
             icon: Icon(liveBle ? Icons.bluetooth_connected_rounded : Icons.bluetooth_searching_rounded),
             label: Text(liveBle ? 'Yeniden bağlan' : 'LilyGO\'ya bağlan'),
           ),
@@ -89,13 +141,32 @@ class _BleDeviceSettingsScreenState extends State<BleDeviceSettingsScreen> {
               style: textTheme.bodySmall?.copyWith(color: muted, height: 1.35),
             ),
           ],
+          if (_syncing || _syncStatus != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _syncing ? 'Cihaza gönderiliyor…' : _syncStatus!,
+              style: textTheme.bodySmall?.copyWith(
+                color: _syncing ? AppColors.accent : muted,
+              ),
+            ),
+          ],
           const SizedBox(height: 24),
           _SectionTitle(text: 'Titreşim', textTheme: textTheme),
+          if (!canSync)
+            Padding(
+              padding: const EdgeInsets.only(top: 4, bottom: 4),
+              child: Text(
+                'Tercih kaydedilir; cihaza yazmak için LilyGO bağlantısı gerekir.',
+                style: textTheme.bodySmall?.copyWith(color: muted, height: 1.3),
+              ),
+            ),
           const SizedBox(height: 8),
           _ChoiceRow(
             labels: const ['Güçlü', 'Hafif', 'Kapalı'],
-            selectedIndex: _vibrationIndex,
-            onSelected: (i) => setState(() => _vibrationIndex = i),
+            selectedIndex: _settings.vibrationIndex,
+            onSelected: _loading || _syncing
+                ? null
+                : (i) => unawaited(_applySettings(_settings.copyWith(vibrationIndex: i))),
             textTheme: textTheme,
             surface: surface,
             border: border,
@@ -106,20 +177,37 @@ class _BleDeviceSettingsScreenState extends State<BleDeviceSettingsScreen> {
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Otomatik'),
-            value: _autoBrightness,
-            onChanged: (v) => setState(() => _autoBrightness = v),
+            subtitle: Text(
+              'Işık sensörü yok; tercih kaydedilir.',
+              style: textTheme.bodySmall?.copyWith(color: muted),
+            ),
+            value: _settings.autoBrightness,
+            onChanged: _loading || _syncing
+                ? null
+                : (v) => unawaited(_applySettings(_settings.copyWith(autoBrightness: v))),
           ),
           Slider(
-            value: _brightness,
-            onChanged: _autoBrightness ? null : (v) => setState(() => _brightness = v),
+            value: _settings.brightness,
+            onChanged: _loading || _syncing || _settings.autoBrightness
+                ? null
+                : _onBrightnessChanged,
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Text(
+              '%${_settings.brightnessPercent}',
+              style: textTheme.labelMedium?.copyWith(color: muted),
+            ),
           ),
           const SizedBox(height: 16),
           _SectionTitle(text: 'Ekran kapanma', textTheme: textTheme),
           const SizedBox(height: 8),
           _ChoiceRow(
             labels: const ['10 sn', '30 sn', 'Sürekli'],
-            selectedIndex: _screenTimeoutIndex,
-            onSelected: (i) => setState(() => _screenTimeoutIndex = i),
+            selectedIndex: _settings.screenTimeoutIndex,
+            onSelected: _loading || _syncing
+                ? null
+                : (i) => unawaited(_applySettings(_settings.copyWith(screenTimeoutIndex: i))),
             textTheme: textTheme,
             surface: surface,
             border: border,
@@ -236,7 +324,7 @@ class _ChoiceRow extends StatelessWidget {
 
   final List<String> labels;
   final int selectedIndex;
-  final ValueChanged<int> onSelected;
+  final ValueChanged<int>? onSelected;
   final TextTheme textTheme;
   final Color surface;
   final Color border;
@@ -251,7 +339,7 @@ class _ChoiceRow extends StatelessWidget {
         return ChoiceChip(
           label: Text(labels[i], style: textTheme.labelLarge),
           selected: selected,
-          onSelected: (_) => onSelected(i),
+          onSelected: onSelected == null ? null : (_) => onSelected!(i),
           side: BorderSide(color: border),
           backgroundColor: surface,
         );

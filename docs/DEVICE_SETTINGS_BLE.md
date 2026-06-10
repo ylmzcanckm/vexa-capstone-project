@@ -1,13 +1,9 @@
 # VEXA — Cihaz ayarları BLE protokolü (Can)
 
-Flutter **Cihaz ayarları** ekranında titreşim, parlaklık ve ekran zaman aşımı gösterilir. Şu an tercihler **yalnızca telefonda** saklanır; LilyGO'ya yazılmadığı için parlaklık vb. cihazda değişmez.
+Flutter **Cihaz ayarları** ekranından `def3` üzerinden LilyGO'ya yazar.
 
-## Yapılacak (firmware)
-
-Yeni characteristic önerisi (aynı servis `...def0`):
-
-| Rol | UUID (öneri) |
-|-----|----------------|
+| Rol | UUID |
+|-----|------|
 | Cihaz ayarları write | `12345678-1234-5678-1234-56789abcdef3` |
 
 ### Paket formatı (öneri)
@@ -39,11 +35,13 @@ case 0x20:
   break;
 ```
 
-## Flutter (siz firmware hazır olunca)
+## Flutter (✅ bağlı)
 
-1. `vexa_ble_config.dart` → `settingsCharacteristicUuid`
-2. Ayar değişince `BleDeviceSettingsService.pushSettings()` → `def3` write
-3. Bağlantıda mevcut tercihleri bir kez gönder
+- `vexa_ble_config.dart` → `settingsCharacteristicUuid` (`...def3`)
+- Ayar değişince `BleAvatarTransferService.scanConnectAndSyncSettings()`
+- Paket: `BleAvatarProtocol.buildDeviceSetting()` → `[V][X][0x20][setting][value][flags]`
+- Parlaklık slider: %20–100 eşlemesi
+- Ekran kapanma: 10 / 30 / `0xFF` (sürekli)
 
 ## Test
 

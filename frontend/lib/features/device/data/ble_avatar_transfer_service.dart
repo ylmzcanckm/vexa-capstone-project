@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:vexa/features/device/ble/ble_avatar_protocol.dart';
 import 'package:vexa/features/device/ble/vexa_ble_config.dart';
+import 'package:vexa/core/storage/device_settings_preferences.dart';
 import 'package:vexa/features/device/data/avatar_bitmap_service.dart';
 import 'package:vexa/features/device/data/ble_permissions.dart';
 
@@ -139,6 +140,66 @@ final class BleAvatarTransferService {
     _startClockSyncTimer();
   }
 
+  /// Donanım ayarlarını `def3` üzerinden yazar (bağlı cihaz gerekir).
+  Future<String?> syncDeviceSettings(DeviceSettingsValues settings) async {
+    final device = _device;
+    if (device == null) return 'BLE bağlantısı yok';
+
+    try {
+      final characteristic = await _findSettingsCharacteristic(device);
+      await _write(
+        characteristic,
+        BleAvatarProtocol.buildDeviceSetting(
+          setting: BleAvatarProtocol.settingVibration,
+          value: settings.vibrationIndex.clamp(0, 2),
+        ),
+      );
+      await _write(
+        characteristic,
+        BleAvatarProtocol.buildDeviceSetting(
+          setting: BleAvatarProtocol.settingBrightness,
+          value: settings.brightnessPercent,
+        ),
+      );
+      await _write(
+        characteristic,
+        BleAvatarProtocol.buildDeviceSetting(
+          setting: BleAvatarProtocol.settingAutoBrightness,
+          value: settings.autoBrightness ? 1 : 0,
+        ),
+      );
+      await _write(
+        characteristic,
+        BleAvatarProtocol.buildDeviceSetting(
+          setting: BleAvatarProtocol.settingScreenTimeout,
+          value: settings.screenTimeoutSeconds,
+        ),
+      );
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  /// Tara → bağlan → ayarları gönder → kes.
+  Future<String?> scanConnectAndSyncSettings(
+    DeviceSettingsValues settings, {
+    Duration scanTimeout = const Duration(seconds: 12),
+  }) async {
+    final results = await scan(timeout: scanTimeout);
+    final pick = pickBestVexaDevice(results);
+    if (pick == null) {
+      return 'VEXA cihazı bulunamadı.';
+    }
+
+    await connect(pick.device);
+    try {
+      return await syncDeviceSettings(settings);
+    } finally {
+      await disconnect();
+    }
+  }
+
   Future<void> disconnect() async {
     _stopClockSyncTimer();
     final d = _device;
@@ -237,6 +298,23 @@ final class BleAvatarTransferService {
     } finally {
       await disconnect();
     }
+  }
+
+  Future<BluetoothCharacteristic> _findSettingsCharacteristic(
+    BluetoothDevice device,
+  ) async {
+    for (final service in device.servicesList) {
+      if (!_uuidMatches(service.uuid, VexaBleConfig.serviceUuid)) continue;
+      for (final c in service.characteristics) {
+        if (_uuidMatches(c.uuid, VexaBleConfig.settingsCharacteristicUuid)) {
+          return c;
+        }
+      }
+    }
+
+    throw Exception(
+      'Ayar characteristic bulunamadı (${VexaBleConfig.settingsCharacteristicUuid}).',
+    );
   }
 
   Future<BluetoothCharacteristic> _findClockCharacteristic(

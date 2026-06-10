@@ -7,6 +7,8 @@ import 'package:vexa/core/theme/vexa_theme_context.dart';
 import 'package:vexa/core/widgets/education_tab_bar.dart';
 import 'package:vexa/core/widgets/substance_choice_bar.dart';
 import 'package:vexa/features/profile/domain/match_interest.dart';
+import 'package:vexa/features/quiz/data/quiz_service.dart';
+import 'package:vexa/features/quiz/presentation/screens/quiz_play_screen.dart';
 
 /// Sosyal profil alanları; mod ekranında [showInlineSave] ile kayıt butonu gösterilir,
 /// profil düzenlemede AppBar kaydı için [persist] çağrılır.
@@ -270,6 +272,8 @@ class SocialProfileEditorState extends State<SocialProfileEditor> {
             }).toList(),
           ),
           const SizedBox(height: 16),
+          _QuizStatusCard(interests: _interests.toList()),
+          const SizedBox(height: 16),
           TextFormField(
             controller: _about,
             maxLines: 5,
@@ -301,7 +305,98 @@ class SocialProfileEditorState extends State<SocialProfileEditor> {
   }
 }
 
-/// Sosyal mod gövdesinde: tamamlama formu (iç kayıt butonlu).
+class _QuizStatusCard extends StatefulWidget {
+  const _QuizStatusCard({required this.interests});
+
+  final List<String> interests;
+
+  @override
+  State<_QuizStatusCard> createState() => _QuizStatusCardState();
+}
+
+class _QuizStatusCardState extends State<_QuizStatusCard> {
+  bool _complete = false;
+  bool _loading = true;
+
+  @override
+  void didUpdateWidget(covariant _QuizStatusCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.interests != widget.interests) _refresh();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  Future<void> _refresh() async {
+    setState(() => _loading = true);
+    final profile = await UserProfileStore.load();
+    final done = QuizService.isCompleteForInterests(
+      profile?.quizAnswers ?? {},
+      widget.interests,
+    );
+    if (!mounted) return;
+    setState(() {
+      _complete = done;
+      _loading = false;
+    });
+  }
+
+  Future<void> _openQuiz() async {
+    if (widget.interests.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Önce en az bir ilgi alanı seç.')),
+      );
+      return;
+    }
+    final ok = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => QuizPlayScreen(interestIds: widget.interests),
+      ),
+    );
+    if (ok == true) await _refresh();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final vexa = context.vexa;
+    if (widget.interests.isEmpty) return const SizedBox.shrink();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'İlgi alanı quizi',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _loading
+                  ? 'Kontrol ediliyor…'
+                  : _complete
+                      ? 'Quiz tamam — eşleşmede karşılaştırılabilir.'
+                      : 'Her ilgi alanı için 5 soru. Eşleşme testi öncesi tamamla.',
+              style: TextStyle(color: vexa.textSecondary, height: 1.35),
+            ),
+            if (!_loading && !_complete) ...[
+              const SizedBox(height: 12),
+              FilledButton.tonal(
+                onPressed: _openQuiz,
+                child: const Text('Quize başla'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Sosyal mod gövdesinde: tamamlama formu (iç kayıt butonu).
 class SocialProfileCompletionSection extends StatelessWidget {
   const SocialProfileCompletionSection({super.key});
 
