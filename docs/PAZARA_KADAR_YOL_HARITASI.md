@@ -1,75 +1,80 @@
-# VEXA — Pazara kadar yol haritası
+# VEXA — Yol haritası
 
-**Bugün (Can ile):** Kurulum → match + quiz E2E → bug listesi  
-**Pazara kadar:** Aşağıdaki MVP+ maddeler + VEXA Finder donanım entegrasyonu
-
----
-
-## Bugün bitirilecekler
-
-| # | Görev | Kim |
-|---|--------|-----|
-| 1 | `git pull origin dev` + iOS kurulum | Can |
-| 2 | İki hesap, 2 ortak ilgi, Social mod | İkiniz |
-| 3 | Quiz tamamla (her telefon) | İkiniz |
-| 4 | Adaylar → Kontrol → Quiz → Geçmiş | İkiniz |
-| 5 | Bug notları | İkiniz |
-
-Rehber: `docs/CAN_KURULUM_VE_TEST.md`, `docs/MATCH_IKI_CIHAZ_TEST.md`
+**HEDEF: MVP Cuma (12 Haziran) akşamı bitmiş olacak. Cumartesi tam gün test.**
 
 ---
 
-## Pazara kadar — MVP+ (ürün)
+## MVP "bitti" sayılır — kontrol listesi
 
-| Öncelik | Konu | Durum | Not |
-|---------|------|--------|-----|
-| P0 | Match + quiz E2E | Test ediliyor | Bug fix turu |
-| P0 | Bug fix turu | Bekliyor | Bugünkü test sonrası |
-| P1 | **VEXA Finder** UI | ✅ Demo hazır | Ayarlar → VEXA Finder → Uyarıyı dene |
-| P1 | VEXA Finder BLE yakınlık | Bekliyor | ~15 m algı → otomatik uyarı |
-| P1 | LilyGO titreşim pulse (`0x05`) | Firmware | Can — `DEVICE_SETTINGS_BLE.md` |
-| P1 | Hesap silme canlı API | Kontrol | `DELETE /users/me` Render deploy |
-| P2 | Push bildirim (FCM) | Yok | Match / Finder için |
-| P2 | Apple Sign-In | Yok | App Store gereksinimi |
-| P2 | Ghost mod sunucu sync | Yok | Şu an UI only |
-| P2 | Discovery filtreleri backend | Yok | Local Riverpod |
-| P3 | Profil normalize tablolar | Yok | `bio` JSON köprüsünden çıkış |
+Aşağıdakilerin hepsi 3 cihazla çalışıyorsa MVP tamamdır:
+
+- [ ] Google ile giriş + profil + avatar → LilyGO'ya aktarım
+- [ ] Tanışma filtreleri seçimi (sunucuya gidiyor)
+- [ ] Yakınlık taraması açık → iki telefonda **otomatik pop-up** + LilyGO titreşimi
+- [ ] Quiz: iki telefonda aynı 5 soru → sonuç sunucudan
+- [ ] ≥ %80 → iki telefonda **aynı renkte** pusula
+- [ ] < %80 → üzgün surat ekranı
+- [ ] Quiz sonrası **2 saat mola** (iki cihazda da; Kontrol + tarama + pop-up kilitli)
+- [ ] Filtre uyuşmazsa davet çıkmıyor
+- [ ] LilyGO: avatar + saat + ayarlar + `0x05` titreşim hepsi aynı firmware'de
 
 ---
 
-## VEXA Finder — nasıl çalışacak
+## Cuma planı (MVP bitirme günü)
 
-```text
-Uyumlu kullanıcı ~15 m yakın (BLE)
-        ↓
-LilyGO titreşir (motor + firmware 0x05)
-        ↓
-Telefon: mavi-mor tam ekran uyarı
-        ↓
-İncele → Adaylar / match akışı
-        ↓
-Quiz ≥ %80 → tanışma
-```
+### Sabah — Can (firmware)
 
-**Şimdi:** Demo butonu + telefon haptics + güçlü titreşim ayarı BLE’ye yazma denemesi  
-**Motor gelince:** Can `0x05` pulse implement eder → otomatik tetikleme servisi bağlanır
+| # | İş | Not |
+|---|----|-----|
+| 1 | `git pull origin dev` | Gece push'lanan pulse entegrasyonu |
+| 2 | `0x06` QUIZ TIME komutu | Titreşim + ekranda büyük "QUIZ TIME" (~10 sn) |
+| 3 | 3 cihaza güncel firmware | Her cihaz benzersiz BLE adıyla |
+| 4 | (Yetişirse) Yayına kullanıcı kimliği | `VEXA-<kısaId>` — yetişmezse MVP'yi bloklamaz |
+
+### Gündüz — Selçuk + Cursor
+
+| # | İş | Not |
+|---|----|-----|
+| 1 | Network modu revizesi | Selçuk anlatır → Cursor uygular |
+| 2 | `0x06` gelirse uygulamaya bağlama | 10 dk — tek satır değişiklik hazır |
+| 3 | 2 telefon + 3 cihazla ilk E2E koşusu | Kontrol listesi yukarıda |
+| 4 | Çıkan bugları anında fix + yeniden kurulum | Cursor canlı düzeltir |
+
+### Akşam — kapanış
+
+- Kontrol listesi yeşil → **MVP bitti** etiketi (git tag `mvp-v1`)
+- Cumartesi test senaryoları yazılı hazır
+
+## Cumartesi — test günü
+
+1. Tam akış × 5+ tekrar (başarılı / başarısız quiz, mola, sıfırlama)
+2. Filtre kombinasyonları (yaş/boy/cinsiyet daralt → davet çıkmamalı)
+3. Kötü koşullar: BLE kapalı, internet yok, uygulama arka planda, Render cold start
+4. 3. cihaz karışıklık testi: yanlış cihaz titremiyor mu?
+5. Bug listesi → öncelik sırala → kritik olanlar aynı gün fix
 
 ---
 
-## Demo günü konuşma metni (yatırımcı / pazar)
+## MVP SONRASI — pazara kadar (2-3 hafta)
 
-1. Google ile giriş, profil, LilyGO avatar
-2. Social mod, ilgi alanları, quiz
-3. İki telefon match + quiz uyumu
-4. VEXA Finder demo (yakınlık vizyonu)
-5. Bilinen sınırlar: BLE menzil algoritması ve push henüz üretim seviyesinde değil
+| Öncelik | Konu | Durum |
+|---------|------|--------|
+| P0 | Push bildirim (FCM/APNs) — uygulama kapalıyken eşleşme | Yok |
+| P0 | Apple Sign-In backend doğrulaması | Buton var, backend eksik |
+| P0 | Apple Developer Program ($99/yıl) kararı | TestFlight/Store için şart |
+| P1 | Arka plan BLE/yoklama (push ile birlikte) | Yok |
+| P1 | Crash raporlama (Sentry/Crashlytics) | Yok |
+| P1 | Render paralı plan (cold start çözümü) | Free tier |
+| P1 | Ghost mod sunucu sync | UI only |
+| P1 | Pusula gerçek yön (RSSI sıcak-soğuk v1) | Demo ibre |
+| P2 | Gizlilik politikası + KVKK + store görselleri | Yok |
+| P2 | Profil normalize (bio JSON → tablolar) | Köprü çalışıyor |
+| P2 | Token yenileme, rate limiting | Temel seviye |
+| P3 | Android / Play Store | Test edilmedi |
 
 ---
 
-## Sıra özeti
+## Durum özeti
 
-```text
-[Bugün]     Can kurulum → E2E test → bug listesi
-[Bu hafta]  Bug fix → Finder firmware pulse → hesap silme doğrula
-[Pazar öncesi] Push + Apple Sign-In değerlendir → Store build
-```
+- **MVP/demo:** ~%90 → Cuma akşamı %100 hedef
+- **Store'da yayınlanabilir v1:** ~%60-65 → 2-3 hafta
