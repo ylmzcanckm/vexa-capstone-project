@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:vexa/core/api/api_exception.dart';
 import 'package:vexa/core/api/models/match_models.dart';
+import 'package:vexa/core/api/profile_bio_codec.dart';
 import 'package:vexa/core/theme/app_colors.dart';
 import 'package:vexa/core/theme/vexa_theme_context.dart';
-import 'package:vexa/core/storage/user_profile_store.dart';
+import 'package:vexa/features/matching/data/discovery_filters_store.dart';
+import 'package:vexa/features/matching/data/live_match_watcher.dart';
+import 'package:vexa/features/matching/data/match_cooldown_store.dart';
 import 'package:vexa/features/matching/data/match_repository.dart';
 import 'package:vexa/features/profile/domain/match_interest.dart';
-import 'package:vexa/features/quiz/data/quiz_service.dart';
-import 'package:vexa/features/quiz/presentation/screens/quiz_compare_screen.dart';
-import 'package:vexa/features/quiz/presentation/screens/quiz_play_screen.dart';
+import 'package:vexa/features/quiz/presentation/screens/live_quiz_screen.dart';
 
 /// Aday listesi + eşleşme kontrolü (quiz öncesi MVP test).
 class MatchCandidatesScreen extends StatefulWidget {
@@ -57,58 +58,33 @@ class _MatchCandidatesScreenState extends State<MatchCandidatesScreen> {
     }
   }
 
-  Future<List<String>> _commonInterestsWith(RemoteMatchCandidate candidate) async {
-    final profile = await UserProfileStore.load();
-    final mine = profile?.social?.interestIds ?? const <String>[];
-    return mine.where(candidate.interests.contains).toList();
-  }
-
-  Future<void> _startQuiz({
-    required RemoteMatchCandidate candidate,
-    required List<String> commonInterests,
-  }) async {
-    if (commonInterests.isEmpty) {
+  Future<void> _check(RemoteMatchCandidate candidate) async {
+    final cooldown = await MatchCooldownStore.remaining();
+    if (cooldown != null) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Quiz için ortak ilgi alanı yok.'),
+        SnackBar(
+          content: Text(
+            'Eşleşme molası aktif — kalan: '
+            '${MatchCooldownStore.formatRemaining(cooldown)}.',
+          ),
         ),
       );
       return;
     }
-    final profile = await UserProfileStore.load();
-    final myInterests = profile?.social?.interestIds ?? const <String>[];
-    final needsLocal = !QuizService.isCompleteForInterests(
-      profile?.quizAnswers ?? {},
-      myInterests,
-    );
-    if (needsLocal && mounted) {
-      final done = await Navigator.of(context).push<bool>(
-        MaterialPageRoute<bool>(
-          builder: (_) => QuizPlayScreen(
-            interestIds: myInterests,
-            title: 'Önce quizi tamamla',
-          ),
-        ),
-      );
-      if (done != true || !mounted) return;
-    }
-    if (!mounted) return;
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => QuizCompareScreen(
-          partnerName: candidate.displayName,
-          commonInterestIds: commonInterests,
-          remoteBio: candidate.profileBio,
-        ),
-      ),
-    );
-  }
 
-  Future<void> _check(RemoteMatchCandidate candidate) async {
     setState(() => _checkingId = candidate.id);
     try {
+      // Tanışma filtreleri tam tutmuyorsa quiz daveti verilmez.
+      final filters = await DiscoveryFiltersStore.load();
+      final profile = ProfileBioCodec.tryDecodeProfileOnly(candidate.profileBio);
+      final filtersOk = filters == null ||
+          profile == null ||
+          DiscoveryFilterMatcher.matches(filters, profile);
+
       final result = await MatchRepository.checkMatch(targetUserId: candidate.id);
+      final canQuiz =
+          result.isMatch && result.commonInterests.isNotEmpty && filtersOk;
       if (!mounted) return;
       await showDialog<void>(
         context: context,
@@ -123,7 +99,9 @@ class _MatchCandidatesScreenState extends State<MatchCandidatesScreen> {
               Text(
                 result.isMatch
                     ? 'Skor ≥ 50 — geçmişe kaydedildi.'
-                    : 'Skor < 50 — henüz eşleşme sayılmıyor.',
+                    : result.isFiltered
+                        ? 'Skor yeterli ama tanışma filtreleri uyuşmuyor.'
+                        : 'Skor < 50 — henüz eşleşme sayılmıyor.',
               ),
               if (result.commonInterests.isNotEmpty) ...[
                 const SizedBox(height: 12),
@@ -135,22 +113,35 @@ class _MatchCandidatesScreenState extends State<MatchCandidatesScreen> {
                 const SizedBox(height: 8),
                 const Text('Aynı mod seçili (+puan).'),
               ],
-              if (result.isMatch && result.commonInterests.isNotEmpty) ...[
+              if (canQuiz) ...[
                 const SizedBox(height: 12),
                 const Text(
                   'Quiz ile uyumunu ölçmek için devam edebilirsin (hedef ≥ %80).',
                 ),
               ],
+              if (result.isMatch && !filtersOk) ...[
+                const SizedBox(height: 12),
+                const Text(
+                  'Tanışma filtrelerinle tam uyuşmuyor — quiz daveti çıkmaz.',
+                ),
+              ],
             ],
           ),
           actions: [
-            if (result.isMatch && result.commonInterests.isNotEmpty)
+            if (canQuiz)
               TextButton(
                 onPressed: () {
                   Navigator.of(ctx).pop();
-                  _startQuiz(
-                    candidate: candidate,
-                    commonInterests: result.commonInterests,
+                  LiveMatchWatcher.markHandled(result.id);
+                  Navigator.of(context).push<void>(
+                    MaterialPageRoute<void>(
+                      builder: (_) => LiveQuizScreen(
+                        matchId: result.id,
+                        partnerId: candidate.id,
+                        partnerName: candidate.displayName,
+                        commonInterestIds: result.commonInterests,
+                      ),
+                    ),
                   );
                 },
                 child: const Text('Quize geç'),
@@ -271,27 +262,9 @@ class _MatchCandidatesScreenState extends State<MatchCandidatesScreen> {
                                     height: 24,
                                     child: CircularProgressIndicator(strokeWidth: 2),
                                   )
-                                : Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      IconButton(
-                                        onPressed: () async {
-                                          final commons =
-                                              await _commonInterestsWith(c);
-                                          if (!mounted) return;
-                                          await _startQuiz(
-                                            candidate: c,
-                                            commonInterests: commons,
-                                          );
-                                        },
-                                        icon: const Icon(Icons.quiz_outlined),
-                                        tooltip: 'Quiz',
-                                      ),
-                                      FilledButton(
-                                        onPressed: () => _check(c),
-                                        child: const Text('Kontrol'),
-                                      ),
-                                    ],
+                                : FilledButton(
+                                    onPressed: () => _check(c),
+                                    child: const Text('Kontrol'),
                                   ),
                           ),
                         );

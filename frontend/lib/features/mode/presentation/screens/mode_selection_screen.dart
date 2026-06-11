@@ -1,14 +1,21 @@
+import 'dart:async' show unawaited;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vexa/core/api/api_exception.dart';
 import 'package:vexa/core/theme/vexa_theme_context.dart';
 import 'package:vexa/features/auth/data/user_repository.dart';
 import 'package:vexa/features/history/presentation/history_screen.dart';
+import 'package:vexa/features/finder/data/vexa_finder_service.dart';
+import 'package:vexa/features/matching/data/live_match_watcher.dart';
+import 'package:vexa/features/matching/data/proximity_scanner.dart';
+import 'package:vexa/features/matching/presentation/screens/match_invite_screen.dart';
 import 'package:vexa/features/mode/domain/vexa_mode.dart';
 import 'package:vexa/features/mode/domain/vexa_mode_api.dart';
 import 'package:vexa/features/mode/presentation/vexa_mode_style.dart';
 import 'package:vexa/features/mode/presentation/widgets/mode_profile_gate_tabs.dart';
 import 'package:vexa/features/profile/presentation/screens/profile_person_screen.dart';
+import 'package:vexa/features/quiz/presentation/screens/live_quiz_screen.dart';
 import 'package:vexa/features/settings/presentation/settings_screen.dart';
 
 /// Profil + avatar tamamlandıktan sonra ana ekran (wireframe: üst hap modlar,
@@ -30,12 +37,55 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
   void initState() {
     super.initState();
     _bootstrapSelectedMode();
+    LiveMatchWatcher.start(onInvite: _onLiveMatchInvite);
+    ProximityScanner.start(onInvite: _onLiveMatchInvite);
   }
 
   @override
   void dispose() {
+    LiveMatchWatcher.stop();
+    ProximityScanner.stop();
     _pageController.dispose();
     super.dispose();
+  }
+
+  /// İki cihaz birbirini görünce (yeni eşleşme) tam ekran davet + canlı quiz.
+  Future<void> _onLiveMatchInvite(LiveMatchInvite invite) async {
+    if (!mounted) return;
+    LiveMatchWatcher.suspended = true;
+    // LilyGO: titreşim (+ firmware gelince ekranda "QUIZ TIME").
+    unawaited(VexaFinderService.pulseDeviceIfPossible());
+    try {
+      final accepted = await Navigator.of(context).push<bool>(
+        PageRouteBuilder<bool>(
+          fullscreenDialog: true,
+          opaque: true,
+          transitionDuration: const Duration(milliseconds: 350),
+          pageBuilder: (ctx, animation, secondary) => FadeTransition(
+            opacity:
+                CurvedAnimation(parent: animation, curve: Curves.easeOut),
+            child: MatchInviteScreen(
+              partnerName: invite.partnerName,
+              matchScore: invite.matchScore,
+            ),
+          ),
+        ),
+      );
+      if (accepted == true && mounted) {
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute<void>(
+            builder: (_) => LiveQuizScreen(
+              matchId: invite.matchId,
+              partnerId: invite.partnerId,
+              partnerName: invite.partnerName,
+              commonInterestIds: invite.commonInterests,
+            ),
+          ),
+        );
+      }
+    } finally {
+      LiveMatchWatcher.suspended = false;
+    }
   }
 
   Future<void> _bootstrapSelectedMode() async {

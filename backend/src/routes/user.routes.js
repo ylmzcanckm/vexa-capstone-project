@@ -114,6 +114,47 @@ router.put("/me/profile", authMiddleware, async (req, res) => {
   }
 });
 
+// Tanışma filtrelerinin sunucu kopyası (profiles.discovery_filters JSONB).
+// Eşleşme kontrolünde iki tarafın filtresi de uygulanır.
+router.put("/me/filters", authMiddleware, async (req, res) => {
+  try {
+    const { filters } = req.body;
+
+    if (filters != null && (typeof filters !== "object" || Array.isArray(filters))) {
+      return res.status(400).json({
+        success: false,
+        message: "filters must be an object or null"
+      });
+    }
+
+    const result = await db.query(
+      `INSERT INTO profiles (user_id, discovery_filters)
+       VALUES ($1, $2)
+       ON CONFLICT (user_id)
+       DO UPDATE SET
+        discovery_filters = EXCLUDED.discovery_filters,
+        updated_at = CURRENT_TIMESTAMP
+       RETURNING
+        user_id AS "userId",
+        discovery_filters AS "discoveryFilters",
+        updated_at AS "updatedAt"`,
+      [req.user.userId, filters == null ? null : JSON.stringify(filters)]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error("Failed to update discovery filters:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to update discovery filters"
+    });
+  }
+});
+
 router.put("/me/avatar", authMiddleware, async (req, res) => {
   try {
     const { avatarId } = req.body;

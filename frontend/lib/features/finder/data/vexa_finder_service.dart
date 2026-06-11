@@ -14,7 +14,7 @@ final class VexaFinderService {
     String? subtitle,
     bool exploreOnAccept = true,
   }) async {
-    await _pulseDeviceIfPossible();
+    await pulseDeviceIfPossible();
 
     if (!context.mounted) return null;
     return Navigator.of(context).push<bool>(
@@ -52,8 +52,11 @@ final class VexaFinderService {
     );
   }
 
-  /// Güçlü titreşim ayarını LilyGO'ya yazar (pulse komutu gelince `0x05` olacak).
-  static Future<void> _pulseDeviceIfPossible() async {
+  /// Güçlü titreşim ayarını LilyGO'ya yazar.
+  ///
+  /// Firmware hazır olunca `0x05` (Finder pulse) ve `0x06` (QUIZ TIME
+  /// yazısı + titreşim) komutlarına geçilecek.
+  static Future<void> pulseDeviceIfPossible() async {
     if (!BleAvatarTransferService.isSupported) return;
     try {
       final settings = await DeviceSettingsPreferences.load();

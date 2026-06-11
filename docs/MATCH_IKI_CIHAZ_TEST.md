@@ -55,27 +55,50 @@ Sosyal profili kaydettikten sonra sunucuya gittiğinden emin ol (kaydet → hata
 
 ---
 
-## 3. Quiz hazırlığı (her iki telefon)
+## 3. Canlı eşleşme + quiz akışı (senaryo)
 
-1. Sosyal mod → profil sekmesi → **İlgi alanı quizi** kartı
-2. Seçtiğin her ilgi alanı için 5 soru (toplam docx kataloğu: 10 kategori × 5 soru)
-3. Bitince “Quiz tamam” mesajı; cevaplar sunucuya `bio` JSON ile gider
+Quiz profilde değil — **eşleşme anında canlı** oynanır:
 
-**Önemli:** Quiz karşılaştırması için ikiniz de **ortak ilgi alanlarında** quizi bitirmiş olmalısınız.
+1. **Tetikleme (iki yol):**
+   - **Yakınlık taraması** (Ayarlar → VEXA Finder → anahtar açık): telefon
+     **20 sn’de bir** BLE’de VEXA cihazı arar; cihaz görülünce tanışma
+     filtrelerinden geçen adaylarla otomatik eşleşme kontrolü yapılır.
+   - **Manuel:** Geçmiş → **Adaylar** → **Kontrol** (skor ≥ 50 → eşleşme)
+2. **Tanışma filtresi kapısı:** Karşı taraf senin filtrelerine (yaş, boy,
+   kilo, cinsiyet, eğitim, sigara/alkol) **tam uymuyorsa** o telefonda davet
+   çıkmaz. İki telefon da kendi filtresini uyguladığı için karşılıklı uyum
+   şartı sağlanır.
+3. **Davet:** LilyGO titrer (firmware ile ekranda **QUIZ TIME**) ve iki
+   telefonda da pop-up: *“Eşleşme var! Quize geçmek ister misin?”* —
+   **Quize geç / Şimdilik geç** (Hayır → ana ekrana dönülür).
+4. **Quiz:** Havuzdan ortak ilgi alanlarına göre **5 soru** (iki telefonda
+   birebir aynı). İkisi de bitirince karşılaştırılır:
+   - **≥ %80 (5’te 4)** → **Minecraft pusulası**: “X bu yönde, birbirinize
+     doğru yürüyün!” Arka plan rengi eşleşmeye özel **random** ama iki
+     telefonda **aynı** — kalabalıkta birbirinizi renkten tanıyın.
+   - Altında → üzgün surat: “Maalesef birbirinize uygun değilsiniz.”
+5. **Eşleşme molası:** Quiz bitince (sonuç ne olursa olsun) iki cihazda da
+   **2 saat** yeni eşleşme olmaz. Test için: Ayarlar → VEXA Finder →
+   “Sıfırla”.
+
+**Notlar:**
+
+- Pusula ibresi şimdilik demo animasyon; gerçek yön LilyGO BLE ile gelecek.
+- Yakınlık taraması şimdilik “herhangi bir VEXA cihazı yakında” sinyali
+  kullanır; firmware yayına kullanıcı kimliği ekleyince kişiye özel olacak.
+- Aynı eşleşmeyi tekrar test etmek için ikiniz de quizi yeniden bitirin
+  (eski cevaplar üzerine yazılır) ve molayı sıfırlayın.
 
 ---
 
-## 4. Match + quiz testi (uygulama)
+## 4. Test senaryosu (önerilen)
 
-1. Ana ekran → **Geçmiş**
-2. Sağ üst **insan ikonu** → **Adaylar**
-3. Karşı taraf listede görünmeli (Can / Selçuk)
-4. **Kontrol** → skor ve “Eşleşme!” diyaloğu (≥ 50)
-5. Diyalogda **Quize geç** veya satırdaki quiz ikonu
-6. Ortak ilgilerde cevap uyumu — hedef **≥ %80**
-7. Geçmiş’e dön → yenile → match kaydı listede
-
-Her iki telefondan da bir kez **Kontrol** + **Quiz** yapılabilir.
+1. İki telefon da açık, uygulama **ön planda**, ana ekranda
+2. Selçuk: Adaylar → Can → **Kontrol** → Eşleşme diyaloğu → **Quize geç**
+3. Can’ın telefonunda ~12 sn içinde pop-up → **Quize geç**
+4. İkiniz de 5 soruyu cevaplayın — testte **aynı cevapları** verin (≥ 4/5)
+5. İki telefonda da pusula ekranı açılmalı
+6. İkinci tur: 2+ farklı cevap verin → “bu sefer olmadı” ekranını doğrulayın
 
 ---
 
@@ -86,8 +109,9 @@ Her iki telefondan da bir kez **Kontrol** + **Quiz** yapılabilir.
 | Aday listesi boş | İkinci kullanıcı kayıt oldu mu? Aynı production API mi? |
 | Skor düşük | Ortak ilgi ekle; ikisi de Social modda olsun |
 | Geçmiş boş | Skor ≥ 50 olmalı; Kontrol sonrası yenile |
-| Quiz karşılaştırılamıyor | İkiniz de ortak ilgilerde quizi bitirin; profili kaydet |
-| Quiz düşük çıktı | Normal — farklı cevaplar düşük uyum verir; test için benzer seç |
+| Pop-up gelmedi | Uygulama ön planda mı? Eşleşme son 5 dk içinde mi? ~12 sn bekle |
+| Sonuç açılmıyor | Karşı taraf 5 soruyu bitirdi mi? İnternet var mı? |
+| Quiz düşük çıktı | Normal — farklı cevaplar düşük uyum verir; test için aynı cevapları verin |
 | Can’a kurulum olmuyor | UDID Xcode’a ekle; güven “Bu bilgisayara güven” |
 
 ---

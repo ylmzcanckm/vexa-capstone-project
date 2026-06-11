@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:vexa/features/matching/data/discovery_filters_store.dart';
 import 'package:vexa/features/matching/domain/discovery_substance_filter.dart';
 
 final class DiscoveryFiltersState {
@@ -47,18 +50,31 @@ final class DiscoveryFiltersState {
 
 class DiscoveryFiltersNotifier extends Notifier<DiscoveryFiltersState> {
   @override
-  DiscoveryFiltersState build() => const DiscoveryFiltersState();
+  DiscoveryFiltersState build() {
+    unawaited(_restore());
+    return const DiscoveryFiltersState();
+  }
+
+  Future<void> _restore() async {
+    final saved = await DiscoveryFiltersStore.load();
+    if (saved != null) state = saved;
+  }
+
+  void _set(DiscoveryFiltersState next) {
+    state = next;
+    unawaited(DiscoveryFiltersStore.save(next));
+  }
 
   void setAgeRange(RangeValues v) {
-    state = state.copyWith(ageRange: v);
+    _set(state.copyWith(ageRange: v));
   }
 
   void setHeightRange(RangeValues v) {
-    state = state.copyWith(heightRange: v);
+    _set(state.copyWith(heightRange: v));
   }
 
   void setWeightRange(RangeValues v) {
-    state = state.copyWith(weightRange: v);
+    _set(state.copyWith(weightRange: v));
   }
 
   void toggleGender(String label) {
@@ -68,27 +84,27 @@ class DiscoveryFiltersNotifier extends Notifier<DiscoveryFiltersState> {
     } else {
       next.add(label);
     }
-    state = state.copyWith(selectedGenders: next);
+    _set(state.copyWith(selectedGenders: next));
   }
 
   void setEducationFloor(String? label) {
     if (label == null) {
-      state = state.copyWith(clearEducationFloor: true);
+      _set(state.copyWith(clearEducationFloor: true));
     } else {
-      state = state.copyWith(educationFloor: label);
+      _set(state.copyWith(educationFloor: label));
     }
   }
 
   void setTobaccoFilter(DiscoverySubstanceFilter v) {
-    state = state.copyWith(tobaccoFilter: v);
+    _set(state.copyWith(tobaccoFilter: v));
   }
 
   void setAlcoholFilter(DiscoverySubstanceFilter v) {
-    state = state.copyWith(alcoholFilter: v);
+    _set(state.copyWith(alcoholFilter: v));
   }
 
   void reset() {
-    state = const DiscoveryFiltersState();
+    _set(const DiscoveryFiltersState());
   }
 }
 

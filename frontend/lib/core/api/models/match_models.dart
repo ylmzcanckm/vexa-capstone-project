@@ -57,7 +57,13 @@ final class RemoteMatchCheckResult {
   final List<String> commonInterests;
   final bool sameMode;
 
-  bool get isMatch => status == 'detected' || matchScore >= 50;
+  /// Yeni backend `filtered` durumunu da bilir: skor yeterli ama tanışma
+  /// filtreleri uyuşmuyor → eşleşme sayılmaz. Eski backend status boş
+  /// dönerse skora bakılır.
+  bool get isMatch =>
+      status.isNotEmpty ? status == 'detected' : matchScore >= 50;
+
+  bool get isFiltered => status == 'filtered';
 
   factory RemoteMatchCheckResult.fromJson(Map<String, dynamic> j) {
     return RemoteMatchCheckResult(

@@ -2,11 +2,72 @@ const express = require("express");
 
 const authMiddleware = require("../middlewares/auth.middleware");
 const db = require("../config/db");
+const {
+  decodeBioProfile,
+  passesDiscoveryFilters,
+  compareQuizAnswers
+} = require("../services/vexa_profile.service");
 
 const router = express.Router();
 
+const COOLDOWN_HOURS = 2;
+
 const getCommonItems = (firstList = [], secondList = []) => {
   return firstList.filter((item) => secondList.includes(item));
+};
+
+// Aktif eşleşme molası (yoksa null). Tablo henüz yoksa sessizce geçer
+// (migration çalıştırılmadan deploy edilirse uygulama kırılmasın).
+const getActiveCooldown = async (userId) => {
+  try {
+    const result = await db.query(
+      `SELECT cooldown_until AS "cooldownUntil"
+       FROM match_cooldowns
+       WHERE user_id = $1 AND cooldown_until > NOW()`,
+      [userId]
+    );
+    return result.rows[0] ? result.rows[0].cooldownUntil : null;
+  } catch (_) {
+    return null;
+  }
+};
+
+const setCooldownForUsers = async (userIds, cooldownUntil) => {
+  try {
+    for (const userId of userIds) {
+      await db.query(
+        `INSERT INTO match_cooldowns (user_id, cooldown_until)
+         VALUES ($1, $2)
+         ON CONFLICT (user_id)
+         DO UPDATE SET
+          cooldown_until = EXCLUDED.cooldown_until,
+          updated_at = CURRENT_TIMESTAMP`,
+        [userId, cooldownUntil]
+      );
+    }
+  } catch (error) {
+    console.error("Failed to set match cooldown:", error);
+  }
+};
+
+const loadMatchForUser = async (matchId, userId) => {
+  const result = await db.query(
+    `SELECT
+      id,
+      user_id_1 AS "userId1",
+      user_id_2 AS "userId2",
+      status,
+      quiz_percent AS "quizPercent",
+      quiz_completed_at AS "quizCompletedAt"
+     FROM matches
+     WHERE id::text = $1`,
+    [matchId]
+  );
+
+  const match = result.rows[0];
+  if (!match) return null;
+  if (match.userId1 !== userId && match.userId2 !== userId) return null;
+  return match;
 };
 
 router.get("/candidates", authMiddleware, async (req, res) => {
@@ -81,8 +142,10 @@ router.post("/check", authMiddleware, async (req, res) => {
         u.id,
         u.email,
         u.full_name AS "fullName",
+        p.bio,
         p.interests,
         p.personality_tags AS "personalityTags",
+        p.discovery_filters AS "discoveryFilters",
         us.selected_mode AS "selectedMode"
        FROM users u
        LEFT JOIN profiles p ON p.user_id = u.id
@@ -105,8 +168,10 @@ router.post("/check", authMiddleware, async (req, res) => {
         u.id,
         u.email,
         u.full_name AS "fullName",
+        p.bio,
         p.interests,
         p.personality_tags AS "personalityTags",
+        p.discovery_filters AS "discoveryFilters",
         us.selected_mode AS "selectedMode"
        FROM users u
        LEFT JOIN profiles p ON p.user_id = u.id
@@ -132,6 +197,31 @@ router.post("/check", authMiddleware, async (req, res) => {
       });
     }
 
+    // 2 saatlik eşleşme molası: taraflardan biri moladaysa eşleşme yapılmaz.
+    const myCooldown = await getActiveCooldown(currentUser.id);
+    const targetCooldown = await getActiveCooldown(targetUser.id);
+    const activeCooldown = myCooldown || targetCooldown;
+
+    if (activeCooldown) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "Eşleşme molası aktif — quiz sonrası 2 saat yeni eşleşme yapılamaz.",
+        cooldownUntil: activeCooldown
+      });
+    }
+
+    // Tanışma filtreleri: iki tarafın filtresi de karşı tarafa tam uymalı.
+    const filtersOk =
+      passesDiscoveryFilters(
+        currentUser.discoveryFilters,
+        decodeBioProfile(targetUser.bio)
+      ) &&
+      passesDiscoveryFilters(
+        targetUser.discoveryFilters,
+        decodeBioProfile(currentUser.bio)
+      );
+
     const commonInterests = getCommonItems(
       currentUser.interests || [],
       targetUser.interests || []
@@ -155,6 +245,14 @@ router.post("/check", authMiddleware, async (req, res) => {
     );
 
     const isMatch = score >= 50;
+
+    // detected: skor yeterli + filtreler uyumlu
+    // filtered: skor yeterli ama filtreler uyuşmuyor (quiz daveti çıkmaz)
+    const matchStatus = isMatch
+      ? filtersOk
+        ? "detected"
+        : "filtered"
+      : "not_matched";
 
     const existingMatchResult = await db.query(
       `SELECT *
@@ -199,7 +297,7 @@ router.post("/check", authMiddleware, async (req, res) => {
           commonPersonalityTags,
           Boolean(sameMode),
           currentUser.selectedMode || null,
-          isMatch ? "detected" : "not_matched",
+          matchStatus,
           existingMatchResult.rows[0].id
         ]
       );
@@ -242,7 +340,7 @@ router.post("/check", authMiddleware, async (req, res) => {
         commonPersonalityTags,
         Boolean(sameMode),
         currentUser.selectedMode || null,
-        isMatch ? "detected" : "not_matched"
+        matchStatus
       ]
     );
 
@@ -266,6 +364,155 @@ router.post("/check", authMiddleware, async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Match check failed"
+    });
+  }
+});
+
+// Canlı quiz: kullanıcının 5 cevabını kaydeder. İki taraf da gönderince
+// sonucu hesaplar, match'e yazar ve iki kullanıcıya 2 saatlik mola başlatır.
+router.post("/:matchId/quiz/answers", authMiddleware, async (req, res) => {
+  try {
+    const { answers } = req.body;
+
+    if (
+      !answers ||
+      typeof answers !== "object" ||
+      Array.isArray(answers) ||
+      Object.keys(answers).length === 0
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "answers must be a non-empty object"
+      });
+    }
+
+    const match = await loadMatchForUser(req.params.matchId, req.user.userId);
+
+    if (!match) {
+      return res.status(404).json({
+        success: false,
+        message: "Match not found"
+      });
+    }
+
+    await db.query(
+      `INSERT INTO match_quiz_answers (match_id, user_id, answers)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (match_id, user_id)
+       DO UPDATE SET
+        answers = EXCLUDED.answers,
+        updated_at = CURRENT_TIMESTAMP`,
+      [match.id, req.user.userId, JSON.stringify(answers)]
+    );
+
+    const rowsResult = await db.query(
+      `SELECT user_id AS "userId", answers
+       FROM match_quiz_answers
+       WHERE match_id = $1`,
+      [match.id]
+    );
+
+    const mine = rowsResult.rows.find((r) => r.userId === req.user.userId);
+    const partner = rowsResult.rows.find((r) => r.userId !== req.user.userId);
+
+    if (!partner) {
+      return res.json({
+        success: true,
+        data: { bothSubmitted: false }
+      });
+    }
+
+    const comparison = compareQuizAnswers(mine.answers, partner.answers);
+    const cooldownUntil = new Date(
+      Date.now() + COOLDOWN_HOURS * 60 * 60 * 1000
+    ).toISOString();
+
+    await db.query(
+      `UPDATE matches
+       SET quiz_percent = $1, quiz_completed_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [comparison.percent, match.id]
+    );
+
+    await setCooldownForUsers([match.userId1, match.userId2], cooldownUntil);
+
+    res.json({
+      success: true,
+      data: {
+        bothSubmitted: true,
+        matching: comparison.matching,
+        total: comparison.total,
+        percent: comparison.percent,
+        passed: comparison.passed,
+        partnerAnswers: partner.answers,
+        cooldownUntil
+      }
+    });
+  } catch (error) {
+    console.error("Failed to submit quiz answers:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to submit quiz answers"
+    });
+  }
+});
+
+// Canlı quiz durumu: karşı taraf bitirdi mi, sonuç ne?
+// Karşı tarafın cevapları yalnızca iki taraf da gönderince döner.
+router.get("/:matchId/quiz", authMiddleware, async (req, res) => {
+  try {
+    const match = await loadMatchForUser(req.params.matchId, req.user.userId);
+
+    if (!match) {
+      return res.status(404).json({
+        success: false,
+        message: "Match not found"
+      });
+    }
+
+    const rowsResult = await db.query(
+      `SELECT user_id AS "userId", answers
+       FROM match_quiz_answers
+       WHERE match_id = $1`,
+      [match.id]
+    );
+
+    const mine = rowsResult.rows.find((r) => r.userId === req.user.userId);
+    const partner = rowsResult.rows.find((r) => r.userId !== req.user.userId);
+    const bothSubmitted = Boolean(mine && partner);
+
+    let comparison = null;
+    if (bothSubmitted) {
+      comparison = compareQuizAnswers(mine.answers, partner.answers);
+    }
+
+    const cooldownUntil = await getActiveCooldown(req.user.userId);
+
+    res.json({
+      success: true,
+      data: {
+        bothSubmitted,
+        mySubmitted: Boolean(mine),
+        partnerSubmitted: Boolean(partner),
+        ...(bothSubmitted
+          ? {
+              matching: comparison.matching,
+              total: comparison.total,
+              percent: comparison.percent,
+              passed: comparison.passed,
+              partnerAnswers: partner.answers
+            }
+          : {}),
+        cooldownUntil
+      }
+    });
+  } catch (error) {
+    console.error("Failed to fetch quiz session:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch quiz session"
     });
   }
 });
