@@ -119,7 +119,10 @@ class _LiveQuizScreenState extends State<LiveQuizScreen> {
         answers: _answers,
       );
     } on ApiException catch (e) {
-      if (e.statusCode == 404) _serverQuiz = false;
+      // 404: eski backend; 5xx: migration eksik olabilir → bio yoluna düş.
+      if (e.statusCode == 404 || (e.statusCode ?? 0) >= 500) {
+        _serverQuiz = false;
+      }
     } catch (_) {}
 
     if (!mounted) return;
@@ -147,8 +150,8 @@ class _LiveQuizScreenState extends State<LiveQuizScreen> {
         }
         return;
       } on ApiException catch (e) {
-        if (e.statusCode == 404) {
-          _serverQuiz = false; // eski backend → bio yoluna düş
+        if (e.statusCode == 404 || (e.statusCode ?? 0) >= 500) {
+          _serverQuiz = false; // eski backend / eksik migration → bio yolu
         } else {
           return;
         }
