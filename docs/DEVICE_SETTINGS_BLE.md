@@ -20,8 +20,8 @@ Magic: `V` `X` — avatar/saat ile tutarlı.
 | `0x02` | `0–100` | Parlaklık (manuel) |
 | `0x03` | `0`/`1` | Otomatik parlaklık açık/kapalı |
 | `0x04` | `10`, `30`, `255` | Ekran zaman aşımı (sn; 255 = always on) |
-| `0x05` | `1` | **VEXA Finder** tek seferlik titreşim pulse (yakınlık uyarısı) |
-| `0x06` | `1` | **QUIZ TIME**: titreşim pulse + ekranda büyük “QUIZ TIME” yazısı (~10 sn, sonra normal ekrana dön) |
+| `0x05` | `1` | ✅ **VEXA Finder** titreşim pulse (firmware'de hazır — `56 58 20 05 01 00`, GPIO 1 motor) |
+| `0x06` | `1` | ⏳ **QUIZ TIME**: titreşim pulse + ekranda büyük “QUIZ TIME” yazısı (~10 sn, sonra normal ekrana dön) — Can'ın sıradaki işi |
 
 **Yakınlık yayını (yeni — Can):** Cihaz **20 sn'de bir** BLE advertise etmeli
 (ekran açıkken zaten ediyor olabilir; periyodik kısa advertise yeterli).

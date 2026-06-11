@@ -181,6 +181,46 @@ final class BleAvatarTransferService {
     }
   }
 
+  /// Finder / eşleşme pulse (`0x05`) — bağlı cihaza gönderir.
+  /// Firmware QUIZ TIME (`0x06`) komutunu alınca [setting] değiştirilebilir.
+  Future<String?> sendFinderPulse({
+    int setting = BleAvatarProtocol.settingFinderPulse,
+  }) async {
+    final device = _device;
+    if (device == null) return 'BLE bağlantısı yok';
+
+    try {
+      final characteristic = await _findSettingsCharacteristic(device);
+      await _write(
+        characteristic,
+        BleAvatarProtocol.buildDeviceSetting(setting: setting, value: 1),
+      );
+      // Firmware'in paketi işlemesi için kısa bekleme.
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  /// Tara → bağlan → Finder pulse gönder → kes.
+  Future<String?> scanConnectAndPulse({
+    Duration scanTimeout = const Duration(seconds: 8),
+  }) async {
+    final results = await scan(timeout: scanTimeout);
+    final pick = pickBestVexaDevice(results);
+    if (pick == null) {
+      return 'VEXA cihazı bulunamadı.';
+    }
+
+    await connect(pick.device);
+    try {
+      return await sendFinderPulse();
+    } finally {
+      await disconnect();
+    }
+  }
+
   /// Tara → bağlan → ayarları gönder → kes.
   Future<String?> scanConnectAndSyncSettings(
     DeviceSettingsValues settings, {

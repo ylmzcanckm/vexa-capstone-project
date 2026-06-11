@@ -18,6 +18,13 @@ final class BleAvatarProtocol {
   static const settingAutoBrightness = 0x03;
   static const settingScreenTimeout = 0x04;
 
+  /// Finder / eşleşme pulse — cihaz iki kısa güçlü titreşim verir.
+  /// Paket: `56 58 20 05 01 00` (firmware'de doğrulandı).
+  static const settingFinderPulse = 0x05;
+
+  /// Titreşim + ekranda "QUIZ TIME" (firmware'de henüz yok — Can'ın sıradaki işi).
+  static const settingQuizTime = 0x06;
+
   /// `def3`: `[V][X][0x20][setting][value][flags]`
   static Uint8List buildDeviceSetting({
     required int setting,

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:vexa/core/storage/device_settings_preferences.dart';
 import 'package:vexa/features/device/data/ble_avatar_transfer_service.dart';
 import 'package:vexa/features/finder/presentation/vexa_finder_alert_screen.dart';
 import 'package:vexa/features/matching/presentation/screens/match_candidates_screen.dart';
@@ -52,18 +51,15 @@ final class VexaFinderService {
     );
   }
 
-  /// Güçlü titreşim ayarını LilyGO'ya yazar.
+  /// LilyGO'ya Finder pulse (`0x05`) gönderir — iki kısa güçlü titreşim.
   ///
-  /// Firmware hazır olunca `0x05` (Finder pulse) ve `0x06` (QUIZ TIME
-  /// yazısı + titreşim) komutlarına geçilecek.
+  /// Firmware `0x06` (QUIZ TIME yazısı + titreşim) komutunu alınca
+  /// eşleşme davetinde ona geçilecek.
   static Future<void> pulseDeviceIfPossible() async {
     if (!BleAvatarTransferService.isSupported) return;
     try {
-      final settings = await DeviceSettingsPreferences.load();
       final ble = BleAvatarTransferService();
-      await ble.scanConnectAndSyncSettings(
-        settings.copyWith(vibrationIndex: 0),
-      );
+      await ble.scanConnectAndPulse();
     } catch (_) {
       // Motor / BLE yoksa yalnızca telefon haptics yeterli.
     }
