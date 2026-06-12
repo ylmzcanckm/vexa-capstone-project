@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon src/app.js",
-    "start": "node src/app.js"
+    "start": "node src/app.js",
+    "migrate": "node -e \"require('./src/config/migrate').runMigrations().then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})\""
   },
   "keywords": [],
   "author": "",

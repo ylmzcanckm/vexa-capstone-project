@@ -1,15 +1,11 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:vexa/core/theme/app_colors.dart';
+import 'package:vexa/features/matching/data/compass_rssi_tracker.dart';
 
-/// Quiz ≥ %80 → iki cihaz birbirini "gösterir" — Minecraft pusulası.
-///
-/// Arka plan rengi `matchId`'den türetilir: iki telefonda da **aynı renk**
-/// çıkar. Kalabalıkta eşler birbirini bu renkten tanır.
-///
-/// Gerçek yön (BLE/UWB) donanım ile gelecek; şimdilik ibre önce arama
-/// animasyonu yapar, sonra sabit bir yöne kilitlenip hafifçe titrer.
+/// Quiz ≥ %80 → BLE RSSI + pusula ile partner yönü (Minecraft pusulası).
 class MatchCompassScreen extends StatefulWidget {
   const MatchCompassScreen({
     super.key,
@@ -22,7 +18,6 @@ class MatchCompassScreen extends StatefulWidget {
   final String partnerName;
   final int compatibilityPercent;
 
-  /// İki telefonda da aynı sonucu veren eşleşme rengi (FNV-1a).
   static Color colorFor(String matchId) {
     var hash = 0x811C9DC5;
     for (final code in matchId.codeUnits) {
@@ -32,61 +27,62 @@ class MatchCompassScreen extends StatefulWidget {
     return _palette[hash % _palette.length];
   }
 
-  /// Kalabalıkta ayırt edilebilir, canlı tonlar.
   static const List<Color> _palette = [
-    Color(0xFF119FF2), // mavi
-    Color(0xFFE05AFF), // mor-pembe
-    Color(0xFF00C48C), // yeşil
-    Color(0xFFFF8A00), // turuncu
-    Color(0xFFFF3D71), // kırmızı-pembe
-    Color(0xFF7C4DFF), // mor
-    Color(0xFF00BCD4), // camgöbeği
-    Color(0xFFFFC400), // sarı
-    Color(0xFF8BC34A), // açık yeşil
-    Color(0xFFFF6E40), // mercan
+    Color(0xFF119FF2),
+    Color(0xFFE05AFF),
+    Color(0xFF00C48C),
+    Color(0xFFFF8A00),
+    Color(0xFFFF3D71),
+    Color(0xFF7C4DFF),
+    Color(0xFF00BCD4),
+    Color(0xFFFFC400),
+    Color(0xFF8BC34A),
+    Color(0xFFFF6E40),
   ];
 
   @override
   State<MatchCompassScreen> createState() => _MatchCompassScreenState();
 }
 
-class _MatchCompassScreenState extends State<MatchCompassScreen>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ticker;
-  late final DateTime _startedAt;
-
-  static const _searchSeconds = 2.6;
-  static const _lockedBearing = 0.6; // radyan — demo hedef yönü
+class _MatchCompassScreenState extends State<MatchCompassScreen> {
+  final _tracker = CompassRssiTracker();
+  CompassRssiSnapshot _snap = const CompassRssiSnapshot(
+    isSearching: true,
+    needleAngleRad: 0,
+    rssi: null,
+    warmth: CompassWarmth.neutral,
+    proximityLabel: 'Sinyal aranıyor…',
+    sampleCount: 0,
+  );
+  StreamSubscription<CompassRssiSnapshot>? _sub;
 
   @override
   void initState() {
     super.initState();
-    _startedAt = DateTime.now();
-    _ticker = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 4),
-    )..repeat();
+    _sub = _tracker.snapshots.listen((s) {
+      if (mounted) setState(() => _snap = s);
+    });
+    unawaited(_tracker.start());
   }
 
   @override
   void dispose() {
-    _ticker.dispose();
+    _sub?.cancel();
+    _tracker.dispose();
     super.dispose();
   }
 
-  double _needleAngle() {
-    final t =
-        DateTime.now().difference(_startedAt).inMilliseconds / 1000.0;
-    if (t < _searchSeconds) {
-      // Arama: hızlı dönüş, sona doğru yavaşlar.
-      final progress = t / _searchSeconds;
-      final eased = Curves.easeOutCubic.transform(progress);
-      return (1 - eased) * math.pi * 6 + _lockedBearing;
-    }
-    // Kilitli: hedef yönde küçük titreşim.
-    final wobble = math.sin((t - _searchSeconds) * 5) * 0.06;
-    return _lockedBearing + wobble;
-  }
+  String get _warmthLabel => switch (_snap.warmth) {
+        CompassWarmth.hot => 'Sıcak — doğru yöndesin',
+        CompassWarmth.cold => 'Soğuk — yön değiştir',
+        CompassWarmth.neutral => 'Telefonu yavaşça çevir',
+      };
+
+  IconData get _warmthIcon => switch (_snap.warmth) {
+        CompassWarmth.hot => Icons.whatshot_rounded,
+        CompassWarmth.cold => Icons.ac_unit_rounded,
+        CompassWarmth.neutral => Icons.screen_rotation_rounded,
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -126,25 +122,57 @@ class _MatchCompassScreenState extends State<MatchCompassScreen>
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  '${widget.partnerName} bu yönde',
+                  _snap.isSearching
+                      ? '${widget.partnerName} aranıyor…'
+                      : '${widget.partnerName} bu yönde',
                   textAlign: TextAlign.center,
                   style: textTheme.headlineMedium?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
-                const SizedBox(height: 36),
-                AnimatedBuilder(
-                  animation: _ticker,
-                  builder: (context, _) {
-                    return CustomPaint(
-                      size: const Size.square(260),
-                      painter: _MinecraftCompassPainter(
-                        needleAngle: _needleAngle(),
-                      ),
-                    );
-                  },
+                const SizedBox(height: 8),
+                Text(
+                  _snap.proximityLabel,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
+                const SizedBox(height: 28),
+                CustomPaint(
+                  size: const Size.square(260),
+                  painter: _MinecraftCompassPainter(
+                    needleAngle: _snap.needleAngleRad,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(_warmthIcon, color: Colors.white, size: 22),
+                    const SizedBox(width: 8),
+                    Text(
+                      _warmthLabel,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.92),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                if (_snap.isSearching) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Telefonu başının üzerinde yavaşça 360° çevir.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.7),
+                      fontSize: 12.5,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 36),
                 Text(
                   'Birbirinize doğru yürüyün!',
@@ -157,7 +185,7 @@ class _MatchCompassScreenState extends State<MatchCompassScreen>
                 const SizedBox(height: 8),
                 Text(
                   'İkinizin ekranı da aynı renkte — kalabalıkta bu renge bak. '
-                  'Gerçek yön bilgisi cihaz (BLE) ile gelecek.',
+                  'Yön BLE sinyal gücü + pusula ile hesaplanır.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.7),
@@ -184,7 +212,6 @@ class _MatchCompassScreenState extends State<MatchCompassScreen>
   }
 }
 
-/// Minecraft pusulası görünümü: taş gri çerçeve, koyu yüz, kırmızı ibre.
 class _MinecraftCompassPainter extends CustomPainter {
   const _MinecraftCompassPainter({required this.needleAngle});
 
@@ -195,10 +222,8 @@ class _MinecraftCompassPainter extends CustomPainter {
     final center = size.center(Offset.zero);
     final r = size.shortestSide / 2;
 
-    // Dış taş çerçeve (koyu).
     canvas.drawCircle(center, r, Paint()..color = const Color(0xFF2A2A2A));
 
-    // Alt-sol gümüş parlama (Minecraft dokusundaki açık kenar).
     final highlight = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = r * 0.16
@@ -224,7 +249,6 @@ class _MinecraftCompassPainter extends CustomPainter {
       midTone,
     );
 
-    // Koyu yüz.
     canvas.drawCircle(center, r * 0.68, Paint()..color = const Color(0xFF101114));
     canvas.drawCircle(
       center,
@@ -235,7 +259,6 @@ class _MinecraftCompassPainter extends CustomPainter {
         ..color = const Color(0xFF34383D),
     );
 
-    // İbre — pixel hissi için dikdörtgen bloklar.
     canvas.save();
     canvas.translate(center.dx, center.dy);
     canvas.rotate(needleAngle);
@@ -243,22 +266,18 @@ class _MinecraftCompassPainter extends CustomPainter {
     final needleLen = r * 0.52;
     final needleW = r * 0.11;
 
-    // Ana kırmızı gövde.
     canvas.drawRect(
       Rect.fromLTWH(-needleW / 2, -needleLen, needleW, needleLen),
       Paint()..color = const Color(0xFFE0382F),
     );
-    // Uç (açık kırmızı blok).
     canvas.drawRect(
       Rect.fromLTWH(-needleW / 2, -needleLen, needleW, needleW),
       Paint()..color = const Color(0xFFFF7A5C),
     );
-    // Kuyruk (koyu).
     canvas.drawRect(
       Rect.fromLTWH(-needleW / 2, 0, needleW, needleLen * 0.35),
       Paint()..color = const Color(0xFF7E1F1B),
     );
-    // Pivot.
     canvas.drawRect(
       Rect.fromCenter(
         center: Offset.zero,

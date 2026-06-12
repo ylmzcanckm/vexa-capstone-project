@@ -9,6 +9,7 @@ const deviceRoutes = require("./routes/device.routes");
 const userRoutes = require("./routes/user.routes");
 const matchRoutes = require("./routes/match.routes");
 const dbRoutes = require("./routes/db.routes");
+const { runMigrations } = require("./config/migrate");
 
 const app = express();
 
@@ -31,6 +32,12 @@ app.use("/api/db", dbRoutes);
 
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Backend running on port ${PORT}`);
-});
+runMigrations()
+  .catch((error) => {
+    console.error("Startup migration error:", error.message);
+  })
+  .finally(() => {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Backend running on port ${PORT}`);
+    });
+  });
