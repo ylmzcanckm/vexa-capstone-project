@@ -31,8 +31,13 @@ final class MatchRepository {
     return RemoteMatchCheckResult.fromJson(data);
   }
 
-  static Future<List<RemoteMatchHistoryItem>> fetchHistory() async {
-    final json = await ApiClient.get('/matches/history', auth: true);
+  static Future<List<RemoteMatchHistoryItem>> fetchHistory({
+    String? mode,
+  }) async {
+    final path = mode != null && mode.isNotEmpty
+        ? '/matches/history?mode=$mode'
+        : '/matches/history';
+    final json = await ApiClient.get(path, auth: true);
     final list = json['data'] as List<dynamic>? ?? [];
     return list
         .whereType<Map<String, dynamic>>()

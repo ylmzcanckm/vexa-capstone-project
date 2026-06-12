@@ -9,7 +9,9 @@ import 'package:vexa/features/history/presentation/history_screen.dart';
 import 'package:vexa/features/finder/data/vexa_finder_service.dart';
 import 'package:vexa/features/matching/data/live_match_watcher.dart';
 import 'package:vexa/features/matching/data/proximity_scanner.dart';
+import 'package:vexa/features/matching/data/match_repository.dart';
 import 'package:vexa/features/matching/presentation/screens/match_invite_screen.dart';
+import 'package:vexa/features/matching/presentation/screens/network_match_screen.dart';
 import 'package:vexa/features/mode/domain/vexa_mode.dart';
 import 'package:vexa/features/mode/domain/vexa_mode_api.dart';
 import 'package:vexa/features/mode/presentation/vexa_mode_style.dart';
@@ -36,6 +38,7 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
   @override
   void initState() {
     super.initState();
+    _syncActiveBackendMode();
     _bootstrapSelectedMode();
     LiveMatchWatcher.start(onInvite: _onLiveMatchInvite);
     ProximityScanner.start(onInvite: _onLiveMatchInvite);
@@ -49,13 +52,47 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
     super.dispose();
   }
 
-  /// İki cihaz birbirini görünce (yeni eşleşme) tam ekran davet + canlı quiz.
+  void _syncActiveBackendMode() {
+    LiveMatchWatcher.activeBackendMode = VexaMode.values[_pageIndex].backendMode;
+  }
+
+  /// Sosyal: quiz daveti. Network: quiz yok, kişi kartı direkt geçmişe düşer.
   Future<void> _onLiveMatchInvite(LiveMatchInvite invite) async {
     if (!mounted) return;
+    if (invite.mode != LiveMatchWatcher.activeBackendMode) return;
+
     LiveMatchWatcher.suspended = true;
-    // LilyGO: ekranda "QUIZ TIME" + titreşim (0x06; eski firmware 0x05 ile titrer).
     unawaited(VexaFinderService.quizTimeSignalIfPossible());
     try {
+      if (invite.isNetworking) {
+        String? partnerBio;
+        try {
+          final candidates = await MatchRepository.fetchCandidates();
+          final match =
+              candidates.where((c) => c.id == invite.partnerId).toList();
+          if (match.isNotEmpty) partnerBio = match.first.profileBio;
+        } catch (_) {}
+
+        if (!mounted) return;
+        await Navigator.of(context).push<void>(
+          PageRouteBuilder<void>(
+            fullscreenDialog: true,
+            opaque: true,
+            transitionDuration: const Duration(milliseconds: 350),
+            pageBuilder: (ctx, animation, secondary) => FadeTransition(
+              opacity:
+                  CurvedAnimation(parent: animation, curve: Curves.easeOut),
+              child: NetworkMatchScreen(
+                partnerName: invite.partnerName,
+                matchScore: invite.matchScore,
+                partnerBio: partnerBio,
+              ),
+            ),
+          ),
+        );
+        return;
+      }
+
       final accepted = await Navigator.of(context).push<bool>(
         PageRouteBuilder<bool>(
           fullscreenDialog: true,
@@ -97,6 +134,7 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
         if (index >= 0 && index != _pageIndex) {
           _pageIndex = index;
           _lastSyncedBackendMode = fromServer.backendMode;
+          _syncActiveBackendMode();
           if (_pageController.hasClients) {
             _pageController.jumpToPage(index);
           } else {
@@ -138,6 +176,7 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
 
   void _onPageChanged(int index) {
     setState(() => _pageIndex = index);
+    _syncActiveBackendMode();
     final mode = VexaMode.values[index];
     debugPrint('VexaMode: $mode');
     _syncModeToServer(mode);
@@ -229,9 +268,18 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
             bottom: 0,
             child: _BottomActionsBar(
               onHistory: () {
+                final mode = VexaMode.values[_pageIndex];
+                if (mode == VexaMode.ghost) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Ghost modda geçmiş görüntülenmez.'),
+                    ),
+                  );
+                  return;
+                }
                 Navigator.of(context).push<void>(
                   MaterialPageRoute<void>(
-                    builder: (_) => const HistoryScreen(),
+                    builder: (_) => HistoryScreen(modeContext: mode),
                   ),
                 );
               },

@@ -60,6 +60,7 @@ final class ProximityScanner {
     _busy = true;
     try {
       if (!await isEnabled()) return;
+      if (LiveMatchWatcher.activeBackendMode == null) return;
       if (await MatchCooldownStore.isActive()) return;
 
       final ble = BleAvatarTransferService();
@@ -90,6 +91,7 @@ final class ProximityScanner {
             partnerName: c.displayName,
             matchScore: result.matchScore,
             commonInterests: result.commonInterests,
+            mode: LiveMatchWatcher.activeBackendMode ?? 'social',
           ),
         );
         break;

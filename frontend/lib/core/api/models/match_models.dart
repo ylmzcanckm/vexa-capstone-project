@@ -89,6 +89,7 @@ final class RemoteMatchHistoryItem {
     required this.sameMode,
     required this.mode,
     required this.status,
+    this.quizPercent,
     required this.createdAt,
     required this.updatedAt,
     required this.otherUser,
@@ -101,6 +102,7 @@ final class RemoteMatchHistoryItem {
   final bool sameMode;
   final String mode;
   final String status;
+  final int? quizPercent;
   final String? createdAt;
   final String? updatedAt;
   final RemoteMatchOtherUser otherUser;
@@ -120,6 +122,7 @@ final class RemoteMatchHistoryItem {
       sameMode: j['sameMode'] as bool? ?? false,
       mode: j['mode'] as String? ?? '',
       status: j['status'] as String? ?? '',
+      quizPercent: (j['quizPercent'] as num?)?.toInt(),
       createdAt: j['createdAt'] as String?,
       updatedAt: j['updatedAt'] as String?,
       otherUser: j['otherUser'] is Map<String, dynamic>
@@ -136,17 +139,20 @@ final class RemoteMatchOtherUser {
     this.id = '',
     this.email = '',
     this.fullName = '',
+    this.bio,
   });
 
   final String id;
   final String email;
   final String fullName;
+  final String? bio;
 
   factory RemoteMatchOtherUser.fromJson(Map<String, dynamic> j) {
     return RemoteMatchOtherUser(
       id: j['id'] as String? ?? '',
       email: j['email'] as String? ?? '',
       fullName: j['fullName'] as String? ?? '',
+      bio: j['bio'] as String?,
     );
   }
 

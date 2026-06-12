@@ -13,6 +13,7 @@ final class LiveMatchInvite {
     required this.partnerName,
     required this.matchScore,
     required this.commonInterests,
+    required this.mode,
   });
 
   final String matchId;
@@ -20,6 +21,12 @@ final class LiveMatchInvite {
   final String partnerName;
   final int matchScore;
   final List<String> commonInterests;
+
+  /// Backend `selected_mode`: `social` | `networking`.
+  final String mode;
+
+  bool get isNetworking => mode == 'networking';
+  bool get isSocial => mode == 'social';
 }
 
 /// Sunucuyu yoklayıp yeni eşleşmede iki telefonda da pop-up tetikler.
@@ -35,6 +42,9 @@ final class LiveMatchWatcher {
 
   /// Davet/quiz ekranı açıkken yeni pop-up çıkmasın.
   static bool suspended = false;
+
+  /// Ana ekrandaki aktif mod (`social` | `networking`). Ghost modda null.
+  static String? activeBackendMode;
 
   /// matchId → işlenen updatedAt (aynı güncelleme tekrar pop-up açmaz).
   static final Map<String, String?> _handledUpdatedAt = {};
@@ -71,11 +81,17 @@ final class LiveMatchWatcher {
     try {
       if (await MatchCooldownStore.isActive()) return;
 
+      final activeMode = activeBackendMode;
+      if (activeMode == null) return;
+
+      // Davet taraması: henüz tamamlanmamış `detected` kayıtları (quiz öncesi
+      // sosyal eşleşmeler dahil). Geçmiş ekranı ayrı filtre kullanır.
       final history = await MatchRepository.fetchHistory();
       final now = DateTime.now().toUtc();
 
       for (final item in history) {
         if (item.status != 'detected') continue;
+        if (item.mode != activeMode) continue;
 
         final updatedAt = DateTime.tryParse(item.updatedAt ?? '');
         if (updatedAt == null) continue;
@@ -101,6 +117,7 @@ final class LiveMatchWatcher {
             partnerName: item.otherUser.displayName,
             matchScore: item.matchScore,
             commonInterests: item.commonInterests,
+            mode: item.mode,
           ),
         );
         break;

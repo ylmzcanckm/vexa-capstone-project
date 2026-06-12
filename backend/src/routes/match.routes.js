@@ -429,9 +429,13 @@ router.post("/:matchId/quiz/answers", authMiddleware, async (req, res) => {
 
     await db.query(
       `UPDATE matches
-       SET quiz_percent = $1, quiz_completed_at = CURRENT_TIMESTAMP
-       WHERE id = $2`,
-      [comparison.percent, match.id]
+       SET
+        quiz_percent = $1,
+        quiz_completed_at = CURRENT_TIMESTAMP,
+        status = $2,
+        updated_at = CURRENT_TIMESTAMP
+       WHERE id = $3`,
+      [comparison.percent, comparison.passed ? "completed" : "quiz_failed", match.id]
     );
 
     await setCooldownForUsers([match.userId1, match.userId2], cooldownUntil);
@@ -519,6 +523,25 @@ router.get("/:matchId/quiz", authMiddleware, async (req, res) => {
 
 router.get("/history", authMiddleware, async (req, res) => {
   try {
+    const modeFilter = req.query.mode;
+    const params = [req.user.userId];
+    let modeClause = "";
+    let visibilityClause = "";
+
+    if (modeFilter === "social" || modeFilter === "networking") {
+      params.push(modeFilter);
+      modeClause = ` AND m.mode = $${params.length}`;
+
+      if (modeFilter === "social") {
+        // Sosyal geçmiş: yalnızca quiz geçilen eşleşmeler.
+        visibilityClause =
+          " AND m.quiz_percent IS NOT NULL AND m.quiz_percent >= 80";
+      } else {
+        // Network geçmiş: quiz yok — eşleşme tespit edilince kart düşer.
+        visibilityClause = " AND m.status IN ('detected', 'completed')";
+      }
+    }
+
     const result = await db.query(
       `SELECT
         m.id,
@@ -530,20 +553,23 @@ router.get("/history", authMiddleware, async (req, res) => {
         m.same_mode AS "sameMode",
         m.mode,
         m.status,
+        m.quiz_percent AS "quizPercent",
         m.created_at AS "createdAt",
         m.updated_at AS "updatedAt",
         other_user.id AS "otherUserId",
         other_user.email AS "otherUserEmail",
-        other_user.full_name AS "otherUserFullName"
+        other_user.full_name AS "otherUserFullName",
+        other_profile.bio AS "otherUserBio"
        FROM matches m
        JOIN users other_user
         ON other_user.id = CASE
           WHEN m.user_id_1 = $1 THEN m.user_id_2
           ELSE m.user_id_1
         END
-       WHERE m.user_id_1 = $1 OR m.user_id_2 = $1
+       LEFT JOIN profiles other_profile ON other_profile.user_id = other_user.id
+       WHERE (m.user_id_1 = $1 OR m.user_id_2 = $1)${modeClause}${visibilityClause}
        ORDER BY m.updated_at DESC`,
-      [req.user.userId]
+      params
     );
 
     const history = result.rows.map((row) => ({
@@ -556,12 +582,14 @@ router.get("/history", authMiddleware, async (req, res) => {
       sameMode: row.sameMode,
       mode: row.mode,
       status: row.status,
+      quizPercent: row.quizPercent,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       otherUser: {
         id: row.otherUserId,
         email: row.otherUserEmail,
-        fullName: row.otherUserFullName
+        fullName: row.otherUserFullName,
+        bio: row.otherUserBio
       }
     }));
 
