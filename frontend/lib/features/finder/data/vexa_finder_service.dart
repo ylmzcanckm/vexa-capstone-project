@@ -52,14 +52,23 @@ final class VexaFinderService {
   }
 
   /// LilyGO'ya Finder pulse (`0x05`) gönderir — iki kısa güçlü titreşim.
-  ///
-  /// Firmware `0x06` (QUIZ TIME yazısı + titreşim) komutunu alınca
-  /// eşleşme davetinde ona geçilecek.
   static Future<void> pulseDeviceIfPossible() async {
     if (!BleAvatarTransferService.isSupported) return;
     try {
       final ble = BleAvatarTransferService();
       await ble.scanConnectAndPulse();
+    } catch (_) {
+      // Motor / BLE yoksa yalnızca telefon haptics yeterli.
+    }
+  }
+
+  /// Eşleşme daveti: cihazda QUIZ TIME yazısı + titreşim (`0x06` + `0x05`).
+  /// Eski firmware `0x06`'yı tanımasa da `0x05` ile titrer.
+  static Future<void> quizTimeSignalIfPossible() async {
+    if (!BleAvatarTransferService.isSupported) return;
+    try {
+      final ble = BleAvatarTransferService();
+      await ble.scanConnectAndQuizTime();
     } catch (_) {
       // Motor / BLE yoksa yalnızca telefon haptics yeterli.
     }

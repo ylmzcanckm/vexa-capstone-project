@@ -53,8 +53,8 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
   Future<void> _onLiveMatchInvite(LiveMatchInvite invite) async {
     if (!mounted) return;
     LiveMatchWatcher.suspended = true;
-    // LilyGO: titreşim (+ firmware gelince ekranda "QUIZ TIME").
-    unawaited(VexaFinderService.pulseDeviceIfPossible());
+    // LilyGO: ekranda "QUIZ TIME" + titreşim (0x06; eski firmware 0x05 ile titrer).
+    unawaited(VexaFinderService.quizTimeSignalIfPossible());
     try {
       final accepted = await Navigator.of(context).push<bool>(
         PageRouteBuilder<bool>(

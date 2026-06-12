@@ -221,6 +221,53 @@ final class BleAvatarTransferService {
     }
   }
 
+  /// Eşleşme daveti sinyali: `0x06` (QUIZ TIME yazısı + titreşim) ve ardından
+  /// `0x05` (pulse). Eski firmware `0x06`'yı tanımasa da `0x05` ile titrer.
+  Future<String?> sendQuizTimeSignal() async {
+    final device = _device;
+    if (device == null) return 'BLE bağlantısı yok';
+
+    try {
+      final characteristic = await _findSettingsCharacteristic(device);
+      await _write(
+        characteristic,
+        BleAvatarProtocol.buildDeviceSetting(
+          setting: BleAvatarProtocol.settingQuizTime,
+          value: 1,
+        ),
+      );
+      await _write(
+        characteristic,
+        BleAvatarProtocol.buildDeviceSetting(
+          setting: BleAvatarProtocol.settingFinderPulse,
+          value: 1,
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  /// Tara → bağlan → QUIZ TIME sinyali → kes.
+  Future<String?> scanConnectAndQuizTime({
+    Duration scanTimeout = const Duration(seconds: 8),
+  }) async {
+    final results = await scan(timeout: scanTimeout);
+    final pick = pickBestVexaDevice(results);
+    if (pick == null) {
+      return 'VEXA cihazı bulunamadı.';
+    }
+
+    await connect(pick.device);
+    try {
+      return await sendQuizTimeSignal();
+    } finally {
+      await disconnect();
+    }
+  }
+
   /// Tara → bağlan → ayarları gönder → kes.
   Future<String?> scanConnectAndSyncSettings(
     DeviceSettingsValues settings, {
