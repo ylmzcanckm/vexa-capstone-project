@@ -16,7 +16,9 @@ final class UserRepository {
 
   /// Sunucudan çekip yerel profile yazar; onboarding durumunu günceller.
   static Future<RemoteUser> syncFromServer() async {
-    final user = await fetchMe();
+    final json = await ApiClient.getWithRetry('/users/me', auth: true);
+    final data = json['data'] as Map<String, dynamic>? ?? {};
+    final user = RemoteUser.fromJson(data);
     await ProfileBioCodec.applyRemoteToLocal(user);
 
     final local = await UserProfileStore.load();

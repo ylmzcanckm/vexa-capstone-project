@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:vexa/core/storage/bound_lilygo_store.dart';
 import 'package:vexa/features/device/ble/ble_avatar_protocol.dart';
 import 'package:vexa/features/device/ble/vexa_ble_config.dart';
 import 'package:vexa/core/storage/device_settings_preferences.dart';
@@ -93,24 +94,79 @@ final class BleAvatarTransferService {
     return 0;
   }
 
-  /// En uygun VEXA cihazını seç (öncelik: `VEXA-B4DC`).
-  static ScanResult? pickBestVexaDevice(List<ScanResult> results) {
-    if (results.isEmpty) return null;
+  /// Benzersiz firmware adı veya bilinen VEXA/LilyGO reklamı.
+  static bool isVexaDevice(ScanResult result) {
+    final name = result.device.platformName;
+    if (name.trim().isEmpty) return false;
+    return isVexaDeviceName(name);
+  }
 
-    final preferred = VexaBleConfig.preferredDeviceName.toUpperCase();
+  static bool isVexaDeviceName(String name) {
+    final upper = name.trim().toUpperCase();
+    if (upper.startsWith('VEXA-')) return true;
+    return _nameHintRank(name) > 0;
+  }
+
+  static bool namesMatch(String a, String b) {
+    return a.trim().toUpperCase() == b.trim().toUpperCase();
+  }
+
+  /// Yalnızca kayıtlı BLE adına uyan cihazı döner.
+  static ScanResult? pickBoundDevice(
+    List<ScanResult> results,
+    String boundBleName,
+  ) {
+    if (boundBleName.trim().isEmpty) return null;
     for (final r in results) {
-      if (r.device.platformName.toUpperCase().contains(preferred)) {
+      if (namesMatch(r.device.platformName, boundBleName)) {
         return r;
       }
     }
+    return null;
+  }
 
-    for (final r in results) {
-      if (_nameHintRank(r.device.platformName) > 0) {
+  /// Kayıtlı LilyGO adını okur; yoksa null.
+  static Future<String?> boundBleName() => BoundLilyGoStore.load();
+
+  /// Otomatik BLE işlemleri için: yalnızca kayıtlı cihaz.
+  static Future<ScanResult?> pickBoundVexaDevice(List<ScanResult> results) async {
+    final bound = await boundBleName();
+    if (bound == null || bound.isEmpty) return null;
+    return pickBoundDevice(results, bound);
+  }
+
+  /// Manuel seçim listesi — tüm VEXA cihazları (RSSI sıralı).
+  static List<ScanResult> listVexaDevices(List<ScanResult> results) {
+    return _sortResults(results.where(isVexaDevice).toList());
+  }
+
+  /// Yakınlık taraması: herhangi bir VEXA cihazı (eşleşme sinyali).
+  static ScanResult? pickAnyVexaDevice(List<ScanResult> results) {
+    final vexa = listVexaDevices(results);
+    if (vexa.isEmpty) return null;
+    return vexa.first;
+  }
+
+  /// Yakınlık taraması: kayıtlı LilyGO dışında başka bir VEXA cihazı.
+  static ScanResult? pickOtherVexaDevice(
+    List<ScanResult> results,
+    String boundBleName,
+  ) {
+    final vexa = listVexaDevices(results);
+    for (final r in vexa) {
+      if (!namesMatch(r.device.platformName, boundBleName)) {
         return r;
       }
     }
+    return null;
+  }
 
-    return results.first;
+  /// @deprecated Otomatik seçim yerine [pickBoundVexaDevice] kullanın.
+  /// Kayıt yoksa veya eşleşme yoksa null döner.
+  static Future<ScanResult?> pickBestVexaDevice(List<ScanResult> results) async {
+    final bound = await pickBoundVexaDevice(results);
+    if (bound != null) return bound;
+    return null;
   }
 
   static String displayName(BluetoothDevice device) {
@@ -208,9 +264,13 @@ final class BleAvatarTransferService {
     Duration scanTimeout = const Duration(seconds: 8),
   }) async {
     final results = await scan(timeout: scanTimeout);
-    final pick = pickBestVexaDevice(results);
+    final pick = await pickBestVexaDevice(results);
     if (pick == null) {
-      return 'VEXA cihazı bulunamadı.';
+      final bound = await boundBleName();
+      if (bound == null || bound.isEmpty) {
+        return 'LilyGO eşleşmesi yok. Ayarlar → Cihaz\'dan seç.';
+      }
+      return 'Kayıtlı cihaz ($bound) yakında değil.';
     }
 
     await connect(pick.device);
@@ -221,8 +281,7 @@ final class BleAvatarTransferService {
     }
   }
 
-  /// Eşleşme daveti sinyali: `0x06` (QUIZ TIME yazısı + titreşim) ve ardından
-  /// `0x05` (pulse). Eski firmware `0x06`'yı tanımasa da `0x05` ile titrer.
+  /// Eşleşme anı: yalnızca `0x06` (titreşim + QUIZ TIME ekranı).
   Future<String?> sendQuizTimeSignal() async {
     final device = _device;
     if (device == null) return 'BLE bağlantısı yok';
@@ -236,11 +295,29 @@ final class BleAvatarTransferService {
           value: 1,
         ),
       );
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  /// Quiz geçince LilyGO arcade ok ekranı (`0x07`).
+  Future<String?> sendArcadeCompassSignal({
+    required int colorIndex,
+    required bool arrowRight,
+  }) async {
+    final device = _device;
+    if (device == null) return 'BLE bağlantısı yok';
+
+    try {
+      final characteristic = await _findSettingsCharacteristic(device);
       await _write(
         characteristic,
         BleAvatarProtocol.buildDeviceSetting(
-          setting: BleAvatarProtocol.settingFinderPulse,
-          value: 1,
+          setting: BleAvatarProtocol.settingArcadeCompass,
+          value: colorIndex.clamp(0, 9),
+          flags: arrowRight ? 1 : 0,
         ),
       );
       await Future<void>.delayed(const Duration(milliseconds: 300));
@@ -250,19 +327,50 @@ final class BleAvatarTransferService {
     }
   }
 
-  /// Tara → bağlan → QUIZ TIME sinyali → kes.
+  /// Tara → bağlan → QUIZ TIME (`0x06`) → kes.
   Future<String?> scanConnectAndQuizTime({
-    Duration scanTimeout = const Duration(seconds: 8),
+    Duration scanTimeout = const Duration(seconds: 4),
   }) async {
     final results = await scan(timeout: scanTimeout);
-    final pick = pickBestVexaDevice(results);
+    final pick = await pickBestVexaDevice(results);
     if (pick == null) {
-      return 'VEXA cihazı bulunamadı.';
+      final bound = await boundBleName();
+      if (bound == null || bound.isEmpty) {
+        return 'LilyGO eşleşmesi yok. Ayarlar → Cihaz\'dan seç.';
+      }
+      return 'Kayıtlı cihaz ($bound) yakında değil.';
     }
 
     await connect(pick.device);
     try {
       return await sendQuizTimeSignal();
+    } finally {
+      await disconnect();
+    }
+  }
+
+  /// Tara → bağlan → arcade pusula (`0x07`) → kes.
+  Future<String?> scanConnectAndArcadeCompass({
+    required int colorIndex,
+    required bool arrowRight,
+    Duration scanTimeout = const Duration(seconds: 4),
+  }) async {
+    final results = await scan(timeout: scanTimeout);
+    final pick = await pickBestVexaDevice(results);
+    if (pick == null) {
+      final bound = await boundBleName();
+      if (bound == null || bound.isEmpty) {
+        return 'LilyGO eşleşmesi yok. Ayarlar → Cihaz\'dan seç.';
+      }
+      return 'Kayıtlı cihaz ($bound) yakında değil.';
+    }
+
+    await connect(pick.device);
+    try {
+      return await sendArcadeCompassSignal(
+        colorIndex: colorIndex,
+        arrowRight: arrowRight,
+      );
     } finally {
       await disconnect();
     }
@@ -274,9 +382,13 @@ final class BleAvatarTransferService {
     Duration scanTimeout = const Duration(seconds: 12),
   }) async {
     final results = await scan(timeout: scanTimeout);
-    final pick = pickBestVexaDevice(results);
+    final pick = await pickBestVexaDevice(results);
     if (pick == null) {
-      return 'VEXA cihazı bulunamadı.';
+      final bound = await boundBleName();
+      if (bound == null || bound.isEmpty) {
+        return 'LilyGO eşleşmesi yok. Ayarlar → Cihaz\'dan seç.';
+      }
+      return 'Kayıtlı cihaz ($bound) yakında değil.';
     }
 
     await connect(pick.device);
@@ -365,10 +477,16 @@ final class BleAvatarTransferService {
     Duration scanTimeout = const Duration(seconds: 12),
   }) async {
     final results = await scan(timeout: scanTimeout);
-    final pick = pickBestVexaDevice(results);
+    final pick = await pickBestVexaDevice(results);
     if (pick == null) {
+      final bound = await boundBleName();
+      if (bound == null || bound.isEmpty) {
+        throw Exception(
+          'LilyGO eşleşmesi yok. Ayarlar → Cihaz bölümünden kendi cihazını seç.',
+        );
+      }
       throw Exception(
-        'VEXA cihazı bulunamadı. LilyGO açık mı? nRF Connect kapalı mı?',
+        'Kayıtlı LilyGO ($bound) yakında değil. Cihaz açık ve telefona yakın mı?',
       );
     }
 

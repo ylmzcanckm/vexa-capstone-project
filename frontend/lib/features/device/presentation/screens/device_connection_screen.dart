@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:vexa/core/storage/bound_lilygo_store.dart';
 import 'package:vexa/core/storage/device_connection_preferences.dart';
 import 'package:vexa/core/storage/onboarding_preferences.dart';
 import 'package:vexa/core/storage/user_profile_store.dart';
@@ -8,6 +9,7 @@ import 'package:vexa/core/theme/vexa_theme_context.dart';
 import 'package:vexa/features/auth/data/user_repository.dart';
 import 'package:vexa/features/device/data/ble_avatar_transfer_service.dart';
 import 'package:vexa/features/device/data/device_repository.dart';
+import 'package:vexa/features/matching/data/proximity_scanner.dart';
 import 'package:vexa/features/mode/presentation/screens/mode_selection_screen.dart';
 import 'package:vexa/features/onboarding/presentation/screens/avatar_selection_screen.dart';
 import 'package:vexa/features/profile/presentation/screens/profile_creation_screen.dart';
@@ -59,16 +61,21 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
     });
     try {
       final results = await _ble.scan();
-      final best = BleAvatarTransferService.pickBestVexaDevice(results);
+      final vexaOnly = BleAvatarTransferService.listVexaDevices(results);
+      final bound = await BoundLilyGoStore.load();
+      ScanResult? preselect;
+      if (bound != null) {
+        preselect = BleAvatarTransferService.pickBoundDevice(vexaOnly, bound);
+      }
       if (!mounted) return;
       setState(() {
-        _scanResults = results;
-        _selected = best;
-        _status = results.isEmpty
-            ? 'Cihaz bulunamadı. LilyGO açık ve yakında mı?'
-            : best != null
-                ? 'Hazır: ${BleAvatarTransferService.displayName(best.device)}'
-                : '${results.length} cihaz — birini seç';
+        _scanResults = vexaOnly;
+        _selected = preselect;
+        _status = vexaOnly.isEmpty
+            ? 'VEXA cihazı bulunamadı. LilyGO açık ve yakında mı?'
+            : preselect != null
+                ? 'Kayıtlı cihaz: ${BleAvatarTransferService.displayName(preselect.device)}'
+                : '${vexaOnly.length} cihaz — kendi LilyGO\'nu seç';
       });
     } catch (e) {
       if (!mounted) return;
@@ -133,10 +140,20 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
 
       final deviceCode = BleAvatarTransferService.pairCodeFor(pick.device);
       final deviceName = BleAvatarTransferService.displayName(pick.device);
+
+      try {
+        final me = await UserRepository.fetchMe();
+        await BoundLilyGoStore.setActiveUserId(me.id);
+        await BoundLilyGoStore.save(deviceName, userId: me.id);
+      } catch (_) {
+        await BoundLilyGoStore.save(deviceName);
+      }
+
       await DeviceRepository.pairDevice(
         deviceCode: deviceCode,
         deviceName: deviceName,
       );
+      await ProximityScanner.sync();
 
       await DeviceConnectionPreferences.setDeviceStepComplete(true);
       try {
@@ -222,7 +239,7 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
                 const SizedBox(height: 6),
                 Text(
                   bleOk
-                      ? 'Cihazını aç, telefonun yakınında tut ve bağlan.'
+                      ? 'Listeden kendi LilyGO\'nu seç. Üç cihaz açık olsa bile yalnızca seçtiğin eşlenir.'
                       : 'BLE yalnızca mobil uygulamada çalışır.',
                   style: textTheme.bodyMedium?.copyWith(
                     color: vexa.textSecondary,
@@ -257,9 +274,7 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
                             itemCount: _scanResults.length,
                             itemBuilder: (context, index) {
                               final r = _scanResults[index];
-                              final name = r.device.platformName.isNotEmpty
-                                  ? r.device.platformName
-                                  : r.device.remoteId.str;
+                              final name = BleAvatarTransferService.displayName(r.device);
                               final selected = _selected == r;
                               return Card(
                                 margin: const EdgeInsets.only(bottom: 8),
@@ -272,6 +287,7 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
                                     color: selected ? AppColors.primary : vexa.textSecondary,
                                   ),
                                   title: Text(name),
+                                  subtitle: Text('RSSI ${r.rssi} dBm'),
                                   trailing: selected
                                       ? const Icon(Icons.check_circle_rounded,
                                           color: AppColors.primary)
@@ -300,7 +316,7 @@ class _DeviceConnectionScreenState extends State<DeviceConnectionScreen> {
                               color: Colors.white,
                             ),
                           )
-                        : const Text('Bağlan'),
+                        : const Text('Bu cihazı eşle'),
                   ),
                 ] else ...[
                   const Spacer(),

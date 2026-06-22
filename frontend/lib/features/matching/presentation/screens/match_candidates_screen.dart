@@ -7,11 +7,12 @@ import 'package:vexa/core/theme/vexa_theme_context.dart';
 import 'package:vexa/features/matching/data/discovery_filters_store.dart';
 import 'package:vexa/features/matching/data/live_match_watcher.dart';
 import 'package:vexa/features/matching/data/match_cooldown_store.dart';
+import 'package:vexa/features/matching/data/match_proximity_gate.dart';
 import 'package:vexa/features/matching/data/match_repository.dart';
 import 'package:vexa/features/profile/domain/match_interest.dart';
 import 'package:vexa/features/quiz/presentation/screens/live_quiz_screen.dart';
 
-/// Aday listesi + eşleşme kontrolü (quiz öncesi MVP test).
+/// Aday listesi — yalnızca geliştirici / tanılama (eşleşme yine yakınlık kapısından geçer).
 class MatchCandidatesScreen extends StatefulWidget {
   const MatchCandidatesScreen({super.key});
 
@@ -59,6 +60,15 @@ class _MatchCandidatesScreenState extends State<MatchCandidatesScreen> {
   }
 
   Future<void> _check(RemoteMatchCandidate candidate) async {
+    final scanBlock = await MatchProximityGate.runProximityScan();
+    if (scanBlock != null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(scanBlock.message)),
+      );
+      return;
+    }
+
     final cooldown = await MatchCooldownStore.remaining();
     if (cooldown != null) {
       if (!mounted) return;
@@ -85,6 +95,9 @@ class _MatchCandidatesScreenState extends State<MatchCandidatesScreen> {
       final result = await MatchRepository.checkMatch(targetUserId: candidate.id);
       final canQuiz =
           result.isMatch && result.commonInterests.isNotEmpty && filtersOk;
+      if (canQuiz) {
+        MatchProximityGate.recordProximitySignal();
+      }
       if (!mounted) return;
       await showDialog<void>(
         context: context,
@@ -130,9 +143,18 @@ class _MatchCandidatesScreenState extends State<MatchCandidatesScreen> {
           actions: [
             if (canQuiz)
               TextButton(
-                onPressed: () {
+                onPressed: () async {
                   Navigator.of(ctx).pop();
+                  final block = await MatchProximityGate.inviteBlockReason();
+                  if (block != null) {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(block.message)),
+                    );
+                    return;
+                  }
                   LiveMatchWatcher.markHandled(result.id);
+                  if (!context.mounted) return;
                   Navigator.of(context).push<void>(
                     MaterialPageRoute<void>(
                       builder: (_) => LiveQuizScreen(

@@ -8,6 +8,7 @@ import 'package:vexa/features/auth/data/user_repository.dart';
 import 'package:vexa/features/history/presentation/history_screen.dart';
 import 'package:vexa/features/finder/data/vexa_finder_service.dart';
 import 'package:vexa/features/matching/data/live_match_watcher.dart';
+import 'package:vexa/features/matching/data/match_proximity_gate.dart';
 import 'package:vexa/features/matching/data/proximity_scanner.dart';
 import 'package:vexa/features/matching/data/match_repository.dart';
 import 'package:vexa/features/matching/presentation/screens/match_invite_screen.dart';
@@ -40,13 +41,11 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
     super.initState();
     _syncActiveBackendMode();
     _bootstrapSelectedMode();
-    LiveMatchWatcher.start(onInvite: _onLiveMatchInvite);
     ProximityScanner.start(onInvite: _onLiveMatchInvite);
   }
 
   @override
   void dispose() {
-    LiveMatchWatcher.stop();
     ProximityScanner.stop();
     _pageController.dispose();
     super.dispose();
@@ -57,12 +56,16 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
   }
 
   /// Sosyal: quiz daveti. Network: quiz yok, kişi kartı direkt geçmişe düşer.
+  ///
+  /// Yalnızca [MatchProximityGate] koşulları sağlandıysa pop-up açılır.
   Future<void> _onLiveMatchInvite(LiveMatchInvite invite) async {
     if (!mounted) return;
     if (invite.mode != LiveMatchWatcher.activeBackendMode) return;
 
+    final block = await MatchProximityGate.inviteBlockReason();
+    if (block != null) return;
+
     LiveMatchWatcher.suspended = true;
-    unawaited(VexaFinderService.quizTimeSignalIfPossible());
     try {
       if (invite.isNetworking) {
         String? partnerBio;
@@ -92,6 +95,10 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
         );
         return;
       }
+
+      // LilyGO QUIZ TIME önce — ardından telefon pop-up (eşzamanlı akış).
+      await VexaFinderService.quizTimeSignalIfPossible();
+      if (!mounted) return;
 
       final accepted = await Navigator.of(context).push<bool>(
         PageRouteBuilder<bool>(
@@ -177,6 +184,7 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
   void _onPageChanged(int index) {
     setState(() => _pageIndex = index);
     _syncActiveBackendMode();
+    unawaited(ProximityScanner.sync());
     final mode = VexaMode.values[index];
     debugPrint('VexaMode: $mode');
     _syncModeToServer(mode);

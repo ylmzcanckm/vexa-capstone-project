@@ -22,8 +22,11 @@ final class BleAvatarProtocol {
   /// Paket: `56 58 20 05 01 00` (firmware'de doğrulandı).
   static const settingFinderPulse = 0x05;
 
-  /// Titreşim + ekranda "QUIZ TIME" (firmware'de henüz yok — Can'ın sıradaki işi).
+  /// Titreşim + ekranda "QUIZ TIME" (~10 sn). Firmware: `56 58 20 06 01 00`.
   static const settingQuizTime = 0x06;
+
+  /// Quiz ≥ %80 sonrası arcade ok ekranı. value = renk indeksi (0–9), flags = ok (0 sol, 1 sağ).
+  static const settingArcadeCompass = 0x07;
 
   /// `def3`: `[V][X][0x20][setting][value][flags]`
   static Uint8List buildDeviceSetting({

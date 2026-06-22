@@ -6,7 +6,9 @@ import 'package:vexa/core/theme/app_colors.dart';
 import 'package:vexa/core/theme/vexa_theme_context.dart';
 import 'package:vexa/features/matching/data/match_cooldown_store.dart';
 import 'package:vexa/features/matching/data/match_repository.dart';
-import 'package:vexa/features/matching/presentation/screens/match_compass_screen.dart';
+import 'package:vexa/features/auth/data/user_repository.dart';
+import 'package:vexa/features/finder/data/vexa_finder_service.dart';
+import 'package:vexa/features/matching/presentation/screens/match_device_compass_screen.dart';
 import 'package:vexa/features/profile/domain/match_interest.dart';
 import 'package:vexa/features/quiz/data/live_quiz_session.dart';
 
@@ -45,6 +47,7 @@ class _LiveQuizScreenState extends State<LiveQuizScreen> {
 
   /// Sunucu quiz endpoint'i kullanılabilir mi? 404 → eski bio yolu.
   bool _serverQuiz = true;
+  int _serverPollErrors = 0;
 
   @override
   void initState() {
@@ -60,10 +63,29 @@ class _LiveQuizScreenState extends State<LiveQuizScreen> {
 
   Future<void> _load() async {
     try {
-      final questions = await LiveQuizSession.questionsFor(
-        matchId: widget.matchId,
-        commonInterestIds: widget.commonInterestIds,
-      );
+      List<LiveQuizQuestionRef> questions = [];
+
+      try {
+        final session =
+            await MatchRepository.beginQuizSession(widget.matchId);
+        questions = LiveQuizSession.questionsFromServer(
+          session['questions'] as List<dynamic>? ?? const [],
+        );
+      } on ApiException catch (e) {
+        if (e.statusCode != 404 && (e.statusCode ?? 0) < 500) rethrow;
+        await LiveQuizSession.clearAnswersForMatch(widget.matchId);
+        questions = await LiveQuizSession.questionsFor(
+          matchId: widget.matchId,
+          commonInterestIds: widget.commonInterestIds,
+        );
+      }
+
+      if (questions.isEmpty) {
+        questions = await LiveQuizSession.questionsFor(
+          matchId: widget.matchId,
+          commonInterestIds: widget.commonInterestIds,
+        );
+      }
       if (!mounted) return;
       if (questions.isEmpty) {
         setState(() {
@@ -133,7 +155,7 @@ class _LiveQuizScreenState extends State<LiveQuizScreen> {
 
     setState(() => _phase = _Phase.waiting);
     _pollTimer = Timer.periodic(
-      const Duration(seconds: 5),
+      const Duration(seconds: 2),
       (_) => _checkPartner(),
     );
     unawaited(_checkPartner());
@@ -145,22 +167,21 @@ class _LiveQuizScreenState extends State<LiveQuizScreen> {
     if (_serverQuiz) {
       try {
         final data = await MatchRepository.fetchQuizSession(widget.matchId);
+        _serverPollErrors = 0;
         if (data['bothSubmitted'] == true) {
           await _finishFromServer(data);
         }
-        return;
       } on ApiException catch (e) {
-        if (e.statusCode == 404 || (e.statusCode ?? 0) >= 500) {
-          _serverQuiz = false; // eski backend / eksik migration → bio yolu
-        } else {
-          return;
+        if (e.statusCode == 404) {
+          _serverQuiz = false;
+        } else if ((e.statusCode ?? 0) >= 500 && _serverPollErrors++ >= 5) {
+          _serverQuiz = false;
         }
-      } catch (_) {
-        return;
-      }
+      } catch (_) {}
+      return;
     }
 
-    // Eski yol: karşı tarafın cevapları profil bio'sundan okunur.
+    // Eski backend: bio yolu (sunucu quiz tablosu yok).
     try {
       final candidates = await MatchRepository.fetchCandidates();
       final partner = candidates.where((c) => c.id == widget.partnerId).toList();
@@ -188,9 +209,7 @@ class _LiveQuizScreenState extends State<LiveQuizScreen> {
       await MatchCooldownStore.activate();
       if (!mounted) return;
       await _showResult(matchingCount: count, total: _questions.length);
-    } catch (_) {
-      // Geçici hata: sonraki yoklamada tekrar dene.
-    }
+    } catch (_) {}
   }
 
   /// Sunucunun hesapladığı sonuçla bitir (cooldown dahil).
@@ -199,6 +218,7 @@ class _LiveQuizScreenState extends State<LiveQuizScreen> {
 
     final matching = (data['matching'] as num?)?.toInt() ?? 0;
     final total = (data['total'] as num?)?.toInt() ?? _questions.length;
+    final percent = (data['percent'] as num?)?.toInt();
 
     final cooldownRaw = data['cooldownUntil'];
     final cooldownUntil =
@@ -210,23 +230,41 @@ class _LiveQuizScreenState extends State<LiveQuizScreen> {
     }
 
     if (!mounted) return;
-    await _showResult(matchingCount: matching, total: total);
+    await _showResult(
+      matchingCount: matching,
+      total: total,
+      passed: data['passed'] as bool?,
+      percentOverride: percent,
+    );
   }
 
   Future<void> _showResult({
     required int matchingCount,
     required int total,
+    bool? passed,
+    int? percentOverride,
   }) async {
     final safeTotal = total > 0 ? total : _questions.length;
-    final percent = ((matchingCount / safeTotal) * 100).round();
+    final percent =
+        percentOverride ?? ((matchingCount / safeTotal) * 100).round();
+    final didPass = passed ?? matchingCount >= LiveQuizSession.passCount;
 
-    if (matchingCount >= LiveQuizSession.passCount) {
+    if (didPass) {
+      final me = await UserRepository.fetchMe();
+      final arrowRight = me.id.compareTo(widget.partnerId) < 0;
+      await VexaFinderService.arcadeCompassSignalIfPossible(
+        matchId: widget.matchId,
+        myUserId: me.id,
+        partnerUserId: widget.partnerId,
+      );
+      if (!mounted) return;
       await Navigator.of(context).pushReplacement<void, void>(
         MaterialPageRoute<void>(
-          builder: (_) => MatchCompassScreen(
+          builder: (_) => MatchDeviceCompassScreen(
             matchId: widget.matchId,
             partnerName: widget.partnerName,
             compatibilityPercent: percent,
+            arrowRight: arrowRight,
           ),
         ),
       );

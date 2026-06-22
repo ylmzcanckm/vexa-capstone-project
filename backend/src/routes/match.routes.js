@@ -7,6 +7,10 @@ const {
   passesDiscoveryFilters,
   compareQuizAnswers
 } = require("../services/vexa_profile.service");
+const {
+  selectQuestionsForMatch,
+  QUESTION_COUNT
+} = require("../services/quiz_catalog.service");
 
 const router = express.Router();
 
@@ -50,6 +54,19 @@ const setCooldownForUsers = async (userIds, cooldownUntil) => {
   }
 };
 
+const clearQuizSession = async (matchId) => {
+  await db.query(`DELETE FROM match_quiz_answers WHERE match_id = $1`, [matchId]);
+};
+
+// Karşı tarafın cevapları bu eşleşme oturumuna ait mi?
+const isAnswerFreshForMatch = (answerRow, matchUpdatedAt) => {
+  if (!answerRow?.updatedAt || !matchUpdatedAt) return false;
+  return new Date(answerRow.updatedAt) >= new Date(matchUpdatedAt);
+};
+
+const expectedQuestionKeysForMatch = (match) =>
+  selectQuestionsForMatch(match.id, match.commonInterests || []).map((q) => q.key);
+
 const loadMatchForUser = async (matchId, userId) => {
   const result = await db.query(
     `SELECT
@@ -57,8 +74,10 @@ const loadMatchForUser = async (matchId, userId) => {
       user_id_1 AS "userId1",
       user_id_2 AS "userId2",
       status,
+      common_interests AS "commonInterests",
       quiz_percent AS "quizPercent",
-      quiz_completed_at AS "quizCompletedAt"
+      quiz_completed_at AS "quizCompletedAt",
+      updated_at AS "updatedAt"
      FROM matches
      WHERE id::text = $1`,
     [matchId]
@@ -268,6 +287,14 @@ router.post("/check", authMiddleware, async (req, res) => {
     let matchResult;
 
     if (existingMatchResult.rows.length > 0) {
+      const existingMatchId = existingMatchResult.rows[0].id;
+
+      // Yeni quiz oturumu: eski cevapları sil (hızlı bitiren tarafın yanlış
+      // sonuç görmesini önler).
+      if (matchStatus === "detected") {
+        await clearQuizSession(existingMatchId);
+      }
+
       matchResult = await db.query(
         `UPDATE matches
          SET
@@ -277,6 +304,8 @@ router.post("/check", authMiddleware, async (req, res) => {
           same_mode = $4,
           mode = $5,
           status = $6,
+          quiz_percent = CASE WHEN $6 = 'detected' THEN NULL ELSE quiz_percent END,
+          quiz_completed_at = CASE WHEN $6 = 'detected' THEN NULL ELSE quiz_completed_at END,
           updated_at = CURRENT_TIMESTAMP
          WHERE id = $7
          RETURNING
@@ -298,7 +327,7 @@ router.post("/check", authMiddleware, async (req, res) => {
           Boolean(sameMode),
           currentUser.selectedMode || null,
           matchStatus,
-          existingMatchResult.rows[0].id
+          existingMatchId
         ]
       );
 
@@ -368,6 +397,52 @@ router.post("/check", authMiddleware, async (req, res) => {
   }
 });
 
+// Quiz oturumu başlat: eski cevapları sil, kanonik 5 soruyu döndür.
+router.post("/:matchId/quiz/begin", authMiddleware, async (req, res) => {
+  try {
+    const match = await loadMatchForUser(req.params.matchId, req.user.userId);
+
+    if (!match) {
+      return res.status(404).json({
+        success: false,
+        message: "Match not found"
+      });
+    }
+
+    await clearQuizSession(match.id);
+    await db.query(
+      `UPDATE matches
+       SET
+        quiz_percent = NULL,
+        quiz_completed_at = NULL,
+        status = CASE WHEN status = 'quiz_failed' THEN 'detected' ELSE status END
+       WHERE id = $1`,
+      [match.id]
+    );
+
+    const questions = selectQuestionsForMatch(
+      match.id,
+      match.commonInterests || []
+    );
+
+    res.json({
+      success: true,
+      data: {
+        matchId: match.id,
+        commonInterests: match.commonInterests || [],
+        questions
+      }
+    });
+  } catch (error) {
+    console.error("Failed to begin quiz session:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to begin quiz session"
+    });
+  }
+});
+
 // Canlı quiz: kullanıcının 5 cevabını kaydeder. İki taraf da gönderince
 // sonucu hesaplar, match'e yazar ve iki kullanıcıya 2 saatlik mola başlatır.
 router.post("/:matchId/quiz/answers", authMiddleware, async (req, res) => {
@@ -395,6 +470,21 @@ router.post("/:matchId/quiz/answers", authMiddleware, async (req, res) => {
       });
     }
 
+    const expectedKeys = expectedQuestionKeysForMatch(match);
+    const submittedKeys = Object.keys(answers).sort();
+
+    if (
+      submittedKeys.length !== QUESTION_COUNT ||
+      submittedKeys.join("|") !== expectedKeys.sort().join("|")
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "answers must contain exactly the 5 canonical question keys for this match",
+        expectedKeys
+      });
+    }
+
     await db.query(
       `INSERT INTO match_quiz_answers (match_id, user_id, answers)
        VALUES ($1, $2, $3)
@@ -406,7 +496,7 @@ router.post("/:matchId/quiz/answers", authMiddleware, async (req, res) => {
     );
 
     const rowsResult = await db.query(
-      `SELECT user_id AS "userId", answers
+      `SELECT user_id AS "userId", answers, updated_at AS "updatedAt"
        FROM match_quiz_answers
        WHERE match_id = $1`,
       [match.id]
@@ -415,14 +505,22 @@ router.post("/:matchId/quiz/answers", authMiddleware, async (req, res) => {
     const mine = rowsResult.rows.find((r) => r.userId === req.user.userId);
     const partner = rowsResult.rows.find((r) => r.userId !== req.user.userId);
 
-    if (!partner) {
+    const partnerReady =
+      partner && isAnswerFreshForMatch(partner, match.updatedAt);
+    const mineReady = mine && isAnswerFreshForMatch(mine, match.updatedAt);
+
+    if (!partnerReady || !mineReady) {
       return res.json({
         success: true,
         data: { bothSubmitted: false }
       });
     }
 
-    const comparison = compareQuizAnswers(mine.answers, partner.answers);
+    const comparison = compareQuizAnswers(
+      mine.answers,
+      partner.answers,
+      expectedKeys
+    );
     const cooldownUntil = new Date(
       Date.now() + COOLDOWN_HOURS * 60 * 60 * 1000
     ).toISOString();
@@ -448,6 +546,7 @@ router.post("/:matchId/quiz/answers", authMiddleware, async (req, res) => {
         total: comparison.total,
         percent: comparison.percent,
         passed: comparison.passed,
+        keyMismatch: comparison.keyMismatch === true,
         partnerAnswers: partner.answers,
         cooldownUntil
       }
@@ -476,7 +575,7 @@ router.get("/:matchId/quiz", authMiddleware, async (req, res) => {
     }
 
     const rowsResult = await db.query(
-      `SELECT user_id AS "userId", answers
+      `SELECT user_id AS "userId", answers, updated_at AS "updatedAt"
        FROM match_quiz_answers
        WHERE match_id = $1`,
       [match.id]
@@ -484,11 +583,21 @@ router.get("/:matchId/quiz", authMiddleware, async (req, res) => {
 
     const mine = rowsResult.rows.find((r) => r.userId === req.user.userId);
     const partner = rowsResult.rows.find((r) => r.userId !== req.user.userId);
-    const bothSubmitted = Boolean(mine && partner);
+    const bothSubmitted = Boolean(
+      mine &&
+        partner &&
+        isAnswerFreshForMatch(mine, match.updatedAt) &&
+        isAnswerFreshForMatch(partner, match.updatedAt)
+    );
 
     let comparison = null;
     if (bothSubmitted) {
-      comparison = compareQuizAnswers(mine.answers, partner.answers);
+      const expectedKeys = expectedQuestionKeysForMatch(match);
+      comparison = compareQuizAnswers(
+        mine.answers,
+        partner.answers,
+        expectedKeys
+      );
     }
 
     const cooldownUntil = await getActiveCooldown(req.user.userId);

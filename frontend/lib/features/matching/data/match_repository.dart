@@ -65,4 +65,14 @@ final class MatchRepository {
     final json = await ApiClient.get('/matches/$matchId/quiz', auth: true);
     return json['data'] as Map<String, dynamic>? ?? {};
   }
+
+  /// Oturumu başlatır: sunucu eski cevapları siler, kanonik 5 soruyu döndürür.
+  static Future<Map<String, dynamic>> beginQuizSession(String matchId) async {
+    final json = await ApiClient.post(
+      '/matches/$matchId/quiz/begin',
+      auth: true,
+      body: const {},
+    );
+    return json['data'] as Map<String, dynamic>? ?? {};
+  }
 }

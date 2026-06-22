@@ -30,6 +30,7 @@
 	<string>Eşleştiğin kişinin yönünü BLE sinyali ile göstermek için konum/pusula erişimi gerekir.</string>
 	<key>NSMotionUsageDescription</key>
 	<string>Pusula yönünü hesaplamak için cihaz sensörlerine erişim gerekir.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>VEXA cihazına bağlanıp avatarını ekrana göndermek için Bluetooth gerekir.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
 	<string>VEXA cihazına bağlanıp avatarını ekrana göndermek için Bluetooth gerekir.</string>

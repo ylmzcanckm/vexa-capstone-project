@@ -75,8 +75,11 @@ final class CompassRssiTracker {
     _emit();
   }
 
-  void _onScanResults(List<ScanResult> results) {
-    final pick = BleAvatarTransferService.pickBestVexaDevice(results);
+  void _onScanResults(List<ScanResult> results) async {
+    final bound = await BleAvatarTransferService.boundBleName();
+    if (bound == null || bound.isEmpty) return;
+
+    final pick = BleAvatarTransferService.pickBoundDevice(results, bound);
     if (pick == null) return;
 
     final rssi = pick.rssi;

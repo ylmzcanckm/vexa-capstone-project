@@ -1,0 +1,725 @@
+{
+  "version": 1,
+  "categories": {
+    "sport": [
+      {
+        "id": "1",
+        "text": "Hangisini tercih edersin",
+        "options": [
+          {
+            "id": "a",
+            "text": "Spor salonunda çalışmak"
+          },
+          {
+            "id": "b",
+            "text": "Açık havada spor yapmak"
+          }
+        ]
+      },
+      {
+        "id": "2",
+        "text": "Hangisi sana daha yakın",
+        "options": [
+          {
+            "id": "a",
+            "text": "Takım sporları"
+          },
+          {
+            "id": "b",
+            "text": "Bireysel sporlar"
+          }
+        ]
+      },
+      {
+        "id": "3",
+        "text": "Hangisini daha çok seversin",
+        "options": [
+          {
+            "id": "a",
+            "text": "Ağırlık antrenmanı"
+          },
+          {
+            "id": "b",
+            "text": "Koşu veya kardiyo"
+          }
+        ]
+      },
+      {
+        "id": "4",
+        "text": "Hafta sonu hangisini seçersin",
+        "options": [
+          {
+            "id": "a",
+            "text": "Maç izlemek"
+          },
+          {
+            "id": "b",
+            "text": "Spor yapmak"
+          }
+        ]
+      },
+      {
+        "id": "5",
+        "text": "Hangisi daha eğlenceli",
+        "options": [
+          {
+            "id": "a",
+            "text": "Futbol veya basketbol"
+          },
+          {
+            "id": "b",
+            "text": "Yüzme veya tenis"
+          }
+        ]
+      }
+    ],
+    "food": [
+      {
+        "id": "1",
+        "text": "Hangisini tercih edersin",
+        "options": [
+          {
+            "id": "a",
+            "text": "Yeni restoranlar keşfetmek"
+          },
+          {
+            "id": "b",
+            "text": "Sevdiğim mekanlara gitmek"
+          }
+        ]
+      },
+      {
+        "id": "2",
+        "text": "Hangisini daha çok seversin",
+        "options": [
+          {
+            "id": "a",
+            "text": "Tatlı"
+          },
+          {
+            "id": "b",
+            "text": "Tuzlu"
+          }
+        ]
+      },
+      {
+        "id": "3",
+        "text": "Hangisi sana daha yakın",
+        "options": [
+          {
+            "id": "a",
+            "text": "Evde yemek yapmak"
+          },
+          {
+            "id": "b",
+            "text": "Dışarıda yemek yemek"
+          }
+        ]
+      },
+      {
+        "id": "4",
+        "text": "Hangisini seçersin",
+        "options": [
+          {
+            "id": "a",
+            "text": "Sokak lezzetleri"
+          },
+          {
+            "id": "b",
+            "text": "Şık restoranlar"
+          }
+        ]
+      },
+      {
+        "id": "5",
+        "text": "Hangisini denemek daha keyifli",
+        "options": [
+          {
+            "id": "a",
+            "text": "Dünya mutfakları"
+          },
+          {
+            "id": "b",
+            "text": "Geleneksel yemekler"
+          }
+        ]
+      }
+    ],
+    "tech": [
+      {
+        "id": "1",
+        "text": "Hangisi daha çok ilgini çeker",
+        "options": [
+          {
+            "id": "a",
+            "text": "Yeni cihazlar"
+          },
+          {
+            "id": "b",
+            "text": "Yeni uygulamalar"
+          }
+        ]
+      },
+      {
+        "id": "2",
+        "text": "Hangisini tercih edersin",
+        "options": [
+          {
+            "id": "a",
+            "text": "Teknoloji haberlerini takip etmek"
+          },
+          {
+            "id": "b",
+            "text": "İhtiyacım olduğunda araştırmak"
+          }
+        ]
+      },
+      {
+        "id": "3",
+        "text": "Hangisi sana daha yakın",
+        "options": [
+          {
+            "id": "a",
+            "text": "Yapay zekâ"
+          },
+          {
+            "id": "b",
+            "text": "Oyun teknolojileri"
+          }
+        ]
+      },
+      {
+        "id": "4",
+        "text": "Hangisini seçersin",
+        "options": [
+          {
+            "id": "a",
+            "text": "Akıllı telefon"
+          },
+          {
+            "id": "b",
+            "text": "Bilgisayar"
+          }
+        ]
+      },
+      {
+        "id": "5",
+        "text": "Yeni bir teknolojik ürün çıktığında ne yaparsın",
+        "options": [
+          {
+            "id": "a",
+            "text": "Hemen incelerim"
+          },
+          {
+            "id": "b",
+            "text": "Bir süre beklerim"
+          }
+        ]
+      }
+    ],
+    "screen_media": [
+      {
+        "id": "1",
+        "text": "Hangisini tercih edersin",
+        "options": [
+          {
+            "id": "a",
+            "text": "Film izlemek"
+          },
+          {
+            "id": "b",
+            "text": "Dizi izlemek"
+          }
+        ]
+      },
+      {
+        "id": "2",
+        "text": "Hangisini seçersin",
+        "options": [
+          {
+            "id": "a",
+            "text": "Komedi"
+          },
+          {
+            "id": "b",
+            "text": "Gerilim"
+          }
+        ]
+      },
+      {
+        "id": "3",
+        "text": "Hangisi daha keyifli",
+        "options": [
+          {
+            "id": "a",
+            "text": "Sinemaya gitmek"
+          },
+          {
+            "id": "b",
+            "text": "Evde izlemek"
+          }
+        ]
+      },
+      {
+        "id": "4",
+        "text": "Hangisini daha çok seversin",
+        "options": [
+          {
+            "id": "a",
+            "text": "Gerçekçi hikâyeler"
+          },
+          {
+            "id": "b",
+            "text": "Fantastik dünyalar"
+          }
+        ]
+      },
+      {
+        "id": "5",
+        "text": "Hangisi sana daha yakın",
+        "options": [
+          {
+            "id": "a",
+            "text": "Anime izlemek"
+          },
+          {
+            "id": "b",
+            "text": "Klasik dizi ve filmler"
+          }
+        ]
+      }
+    ],
+    "books": [
+      {
+        "id": "1",
+        "text": "Hangisini tercih edersin",
+        "options": [
+          {
+            "id": "a",
+            "text": "Roman"
+          },
+          {
+            "id": "b",
+            "text": "Kişisel gelişim veya bilgi kitapları"
+          }
+        ]
+      },
+      {
+        "id": "2",
+        "text": "Hangisini seçersin",
+        "options": [
+          {
+            "id": "a",
+            "text": "Basılı kitap"
+          },
+          {
+            "id": "b",
+            "text": "E-kitap"
+          }
+        ]
+      },
+      {
+        "id": "3",
+        "text": "Hangisi daha çok ilgini çeker",
+        "options": [
+          {
+            "id": "a",
+            "text": "Polisiye"
+          },
+          {
+            "id": "b",
+            "text": "Bilim kurgu veya fantastik"
+          }
+        ]
+      },
+      {
+        "id": "4",
+        "text": "Ne zaman okumayı tercih edersin",
+        "options": [
+          {
+            "id": "a",
+            "text": "Gün içinde"
+          },
+          {
+            "id": "b",
+            "text": "Uyumadan önce"
+          }
+        ]
+      },
+      {
+        "id": "5",
+        "text": "Hangisi sana daha yakın",
+        "options": [
+          {
+            "id": "a",
+            "text": "Kitap önerisi almak"
+          },
+          {
+            "id": "b",
+            "text": "Kitap önerisi vermek"
+          }
+        ]
+      }
+    ],
+    "outdoor": [
+      {
+        "id": "1",
+        "text": "Hangisini tercih edersin",
+        "options": [
+          {
+            "id": "a",
+            "text": "Deniz kenarı"
+          },
+          {
+            "id": "b",
+            "text": "Orman veya dağ"
+          }
+        ]
+      },
+      {
+        "id": "2",
+        "text": "Hangisini seçersin",
+        "options": [
+          {
+            "id": "a",
+            "text": "Çadır kampı"
+          },
+          {
+            "id": "b",
+            "text": "Bungalov tatili"
+          }
+        ]
+      },
+      {
+        "id": "3",
+        "text": "Hangisi daha keyifli",
+        "options": [
+          {
+            "id": "a",
+            "text": "Doğa yürüyüşü"
+          },
+          {
+            "id": "b",
+            "text": "Piknik yapmak"
+          }
+        ]
+      },
+      {
+        "id": "4",
+        "text": "Hangisini daha çok seversin",
+        "options": [
+          {
+            "id": "a",
+            "text": "Gün doğumu"
+          },
+          {
+            "id": "b",
+            "text": "Gün batımı"
+          }
+        ]
+      },
+      {
+        "id": "5",
+        "text": "Hafta sonu hangisini seçersin",
+        "options": [
+          {
+            "id": "a",
+            "text": "Şehirden uzaklaşmak"
+          },
+          {
+            "id": "b",
+            "text": "Şehirde vakit geçirmek"
+          }
+        ]
+      }
+    ],
+    "fashion": [
+      {
+        "id": "1",
+        "text": "Hangisini tercih edersin",
+        "options": [
+          {
+            "id": "a",
+            "text": "Rahat giyinmek"
+          },
+          {
+            "id": "b",
+            "text": "Şık giyinmek"
+          }
+        ]
+      },
+      {
+        "id": "2",
+        "text": "Hangisi sana daha yakın",
+        "options": [
+          {
+            "id": "a",
+            "text": "Sade parçalar"
+          },
+          {
+            "id": "b",
+            "text": "Dikkat çekici parçalar"
+          }
+        ]
+      },
+      {
+        "id": "3",
+        "text": "Hangisini seçersin",
+        "options": [
+          {
+            "id": "a",
+            "text": "Spor ayakkabı"
+          },
+          {
+            "id": "b",
+            "text": "Klasik ayakkabı"
+          }
+        ]
+      },
+      {
+        "id": "4",
+        "text": "Hangisi daha önemli",
+        "options": [
+          {
+            "id": "a",
+            "text": "Tarz"
+          },
+          {
+            "id": "b",
+            "text": "Konfor"
+          }
+        ]
+      },
+      {
+        "id": "5",
+        "text": "Alışveriş yaparken hangisini tercih edersin",
+        "options": [
+          {
+            "id": "a",
+            "text": "Mağazada gezmek"
+          },
+          {
+            "id": "b",
+            "text": "İnternetten bakmak"
+          }
+        ]
+      }
+    ],
+    "art": [
+      {
+        "id": "1",
+        "text": "Hangisini tercih edersin",
+        "options": [
+          {
+            "id": "a",
+            "text": "Sergi gezmek"
+          },
+          {
+            "id": "b",
+            "text": "Tiyatro izlemek"
+          }
+        ]
+      },
+      {
+        "id": "2",
+        "text": "Hangisi daha çok ilgini çeker",
+        "options": [
+          {
+            "id": "a",
+            "text": "Resim"
+          },
+          {
+            "id": "b",
+            "text": "Fotoğrafçılık"
+          }
+        ]
+      },
+      {
+        "id": "3",
+        "text": "Hangisini seçersin",
+        "options": [
+          {
+            "id": "a",
+            "text": "Modern sanat"
+          },
+          {
+            "id": "b",
+            "text": "Klasik sanat"
+          }
+        ]
+      },
+      {
+        "id": "4",
+        "text": "Hangisi sana daha yakın",
+        "options": [
+          {
+            "id": "a",
+            "text": "Sanat üretmek"
+          },
+          {
+            "id": "b",
+            "text": "Sanat eserlerini incelemek"
+          }
+        ]
+      },
+      {
+        "id": "5",
+        "text": "Hafta sonu hangisine gitmek istersin",
+        "options": [
+          {
+            "id": "a",
+            "text": "Müze"
+          },
+          {
+            "id": "b",
+            "text": "Canlı performans"
+          }
+        ]
+      }
+    ],
+    "gaming": [
+      {
+        "id": "1",
+        "text": "Hangisini tercih edersin",
+        "options": [
+          {
+            "id": "a",
+            "text": "Bilgisayar veya konsol oyunları"
+          },
+          {
+            "id": "b",
+            "text": "Mobil oyunlar"
+          }
+        ]
+      },
+      {
+        "id": "2",
+        "text": "Hangisini seçersin",
+        "options": [
+          {
+            "id": "a",
+            "text": "Tek başına oynamak"
+          },
+          {
+            "id": "b",
+            "text": "Arkadaşlarla oynamak"
+          }
+        ]
+      },
+      {
+        "id": "3",
+        "text": "Hangisi daha eğlenceli",
+        "options": [
+          {
+            "id": "a",
+            "text": "Rekabetçi oyunlar"
+          },
+          {
+            "id": "b",
+            "text": "Hikâyeli oyunlar"
+          }
+        ]
+      },
+      {
+        "id": "4",
+        "text": "Hangisini tercih edersin",
+        "options": [
+          {
+            "id": "a",
+            "text": "Strateji oyunları"
+          },
+          {
+            "id": "b",
+            "text": "Aksiyon oyunları"
+          }
+        ]
+      },
+      {
+        "id": "5",
+        "text": "Hangisi sana daha yakın",
+        "options": [
+          {
+            "id": "a",
+            "text": "Video oyunları"
+          },
+          {
+            "id": "b",
+            "text": "Masa oyunları"
+          }
+        ]
+      }
+    ],
+    "music": [
+      {
+        "id": "1",
+        "text": "Hangisini tercih edersin",
+        "options": [
+          {
+            "id": "a",
+            "text": "Canlı müzik dinlemek"
+          },
+          {
+            "id": "b",
+            "text": "Evde playlist açmak"
+          }
+        ]
+      },
+      {
+        "id": "2",
+        "text": "Hangisini seçersin",
+        "options": [
+          {
+            "id": "a",
+            "text": "Pop veya elektronik müzik"
+          },
+          {
+            "id": "b",
+            "text": "Rock veya alternatif müzik"
+          }
+        ]
+      },
+      {
+        "id": "3",
+        "text": "Hangisi sana daha yakın",
+        "options": [
+          {
+            "id": "a",
+            "text": "Hareketli şarkılar"
+          },
+          {
+            "id": "b",
+            "text": "Sakin şarkılar"
+          }
+        ]
+      },
+      {
+        "id": "4",
+        "text": "Müzik dinlerken hangisi daha önemli",
+        "options": [
+          {
+            "id": "a",
+            "text": "Şarkı sözleri"
+          },
+          {
+            "id": "b",
+            "text": "Melodi ve ritim"
+          }
+        ]
+      },
+      {
+        "id": "5",
+        "text": "Hangisini tercih edersin",
+        "options": [
+          {
+            "id": "a",
+            "text": "Konser"
+          },
+          {
+            "id": "b",
+            "text": "Müzik festivali"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -45,6 +45,34 @@ final class LiveQuizSession {
     return hash;
   }
 
+  /// Sunucunun döndürdüğü kanonik soru listesini yerel modele çevirir.
+  static List<LiveQuizQuestionRef> questionsFromServer(
+    List<dynamic> raw,
+  ) {
+    return raw.whereType<Map<String, dynamic>>().map((item) {
+      final options = (item['options'] as List<dynamic>?)
+              ?.whereType<Map<String, dynamic>>()
+              .map(
+                (o) => QuizOption(
+                  id: o['id'] as String? ?? '',
+                  text: o['text'] as String? ?? '',
+                ),
+              )
+              .toList() ??
+          const [];
+      final interestId = item['interestId'] as String? ?? '';
+      final questionId = item['questionId'] as String? ?? '';
+      return LiveQuizQuestionRef(
+        interestId: interestId,
+        question: QuizQuestion(
+          id: questionId,
+          text: item['text'] as String? ?? '',
+          options: options,
+        ),
+      );
+    }).toList();
+  }
+
   /// Ortak ilgi alanlarındaki sorulardan matchId'ye göre 5 soru seçer.
   static Future<List<LiveQuizQuestionRef>> questionsFor({
     required String matchId,
@@ -69,6 +97,16 @@ final class LiveQuizSession {
     }
     final sorted = indices.toList()..sort();
     return [for (final i in sorted) pool[i]];
+  }
+
+  /// Yeni oturumda eski cevapları yerel profilden siler.
+  static Future<void> clearAnswersForMatch(String matchId) async {
+    final existing = await UserProfileStore.load();
+    if (existing == null) return;
+    final merged = Map<String, Map<String, String>>.from(existing.quizAnswers);
+    if (!merged.remove(answersKeyFor(matchId))) return;
+    await UserProfileStore.save(existing.copyWith(quizAnswers: merged));
+    await UserRepository.syncLocalProfileToServer();
   }
 
   /// Cevapları yerel profile yazar ve sunucuya gönderir.

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -9,11 +10,13 @@ import 'package:vexa/core/storage/auth_token_store.dart';
 final class ApiClient {
   const ApiClient._();
 
-  static const _timeout = Duration(seconds: 45);
+  static const defaultTimeout = Duration(seconds: 45);
+  static const coldStartTimeout = Duration(seconds: 90);
 
   static Future<Map<String, dynamic>> get(
     String path, {
     bool auth = false,
+    Duration timeout = defaultTimeout,
   }) async {
     return _decode(
       await http
@@ -21,7 +24,7 @@ final class ApiClient {
             AppConfig.uri(path),
             headers: await _headers(auth: auth),
           )
-          .timeout(_timeout),
+          .timeout(timeout),
     );
   }
 
@@ -29,6 +32,7 @@ final class ApiClient {
     String path, {
     Map<String, dynamic>? body,
     bool auth = false,
+    Duration timeout = defaultTimeout,
   }) async {
     return _decode(
       await http
@@ -37,8 +41,40 @@ final class ApiClient {
             headers: await _headers(auth: auth),
             body: body == null ? null : jsonEncode(body),
           )
-          .timeout(_timeout),
+          .timeout(timeout),
     );
+  }
+
+  /// Render cold start: bir kez daha dene.
+  static Future<Map<String, dynamic>> getWithRetry(
+    String path, {
+    bool auth = false,
+    Duration timeout = coldStartTimeout,
+  }) async {
+    return _withTimeoutRetry(
+      () => get(path, auth: auth, timeout: timeout),
+    );
+  }
+
+  static Future<Map<String, dynamic>> postWithRetry(
+    String path, {
+    Map<String, dynamic>? body,
+    bool auth = false,
+    Duration timeout = coldStartTimeout,
+  }) async {
+    return _withTimeoutRetry(
+      () => post(path, body: body, auth: auth, timeout: timeout),
+    );
+  }
+
+  static Future<Map<String, dynamic>> _withTimeoutRetry(
+    Future<Map<String, dynamic>> Function() request,
+  ) async {
+    try {
+      return await request();
+    } on TimeoutException {
+      return await request();
+    }
   }
 
   static Future<Map<String, dynamic>> put(
@@ -53,7 +89,7 @@ final class ApiClient {
             headers: await _headers(auth: auth),
             body: body == null ? null : jsonEncode(body),
           )
-          .timeout(_timeout),
+          .timeout(defaultTimeout),
     );
   }
 
@@ -67,7 +103,7 @@ final class ApiClient {
             AppConfig.uri(path),
             headers: await _headers(auth: auth),
           )
-          .timeout(_timeout),
+          .timeout(defaultTimeout),
     );
   }
 

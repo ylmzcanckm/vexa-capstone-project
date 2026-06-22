@@ -5,30 +5,23 @@ import 'package:vexa/core/api/profile_bio_codec.dart';
 import 'package:vexa/features/device/data/ble_avatar_transfer_service.dart';
 import 'package:vexa/features/matching/data/discovery_filters_store.dart';
 import 'package:vexa/features/matching/data/live_match_watcher.dart';
-import 'package:vexa/features/matching/data/match_cooldown_store.dart';
+import 'package:vexa/features/matching/data/match_proximity_gate.dart';
 import 'package:vexa/features/matching/data/match_repository.dart';
 import 'package:vexa/features/matching/presentation/providers/discovery_filters_provider.dart';
 
-/// VEXA cihazı yakınlık taraması — senaryonun "cihaz 20 sn'de bir yayın
-/// yapar" ayağının telefon tarafı.
+/// VEXA Finder — arka plan yakınlık taraması.
 ///
-/// 20 sn'de bir kısa BLE taraması yapar; yakında bir VEXA/LilyGO cihazı
-/// görülürse tanışma filtrelerinden geçen adaylarla sunucuda eşleşme
-/// kontrolü yapılır ve eşleşme çıkarsa quiz daveti tetiklenir.
-///
-/// Not: Firmware, yayına kullanıcı kimliği ekleyince (Can'ın görevi) tarama
-/// "hangi kullanıcının cihazı" bilgisini de verecek; şimdilik herhangi bir
-/// VEXA cihazı "yakında biri var" sinyali sayılır. Bu yüzden anahtar
-/// (ayarlardan açılıp kapanır) varsayılan olarak kapalıdır.
+/// Zamanlayıcı yalnızca [MatchProximityGate.shouldRunBackgroundScan] true
+/// iken çalışır (LilyGO eşlemesi + Finder açık + cooldown yok).
 final class ProximityScanner {
   const ProximityScanner._();
 
-  static const _enabledKey = 'vexa_proximity_scan_enabled_v1';
+  static const _enabledKey = MatchProximityGate.finderEnabledPrefsKey;
   static const interval = Duration(seconds: 20);
-  static const _scanTimeout = Duration(seconds: 4);
 
   static Timer? _timer;
   static bool _busy = false;
+  static Future<void> Function(LiveMatchInvite invite)? _onInvite;
 
   static Future<bool> isEnabled() async {
     final prefs = await SharedPreferences.getInstance();
@@ -38,18 +31,39 @@ final class ProximityScanner {
   static Future<void> setEnabled(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_enabledKey, value);
+    await sync();
   }
 
+  /// Ana ekranda davet geri çağrısını kaydet; kapı koşullarına göre taramayı aç/kapat.
   static void start({
     required Future<void> Function(LiveMatchInvite invite) onInvite,
   }) {
-    stop();
-    _timer = Timer.periodic(interval, (_) => _tick(onInvite));
+    _onInvite = onInvite;
+    unawaited(sync());
   }
 
   static void stop() {
     _timer?.cancel();
     _timer = null;
+    _onInvite = null;
+  }
+
+  /// LilyGO / Finder / cooldown durumuna göre arka plan taramasını güncelle.
+  static Future<void> sync() async {
+    final callback = _onInvite;
+    if (callback == null) return;
+
+    final shouldRun = await MatchProximityGate.shouldRunBackgroundScan();
+    if (!shouldRun) {
+      _timer?.cancel();
+      _timer = null;
+      return;
+    }
+
+    if (_timer != null) return;
+
+    _timer = Timer.periodic(interval, (_) => unawaited(_tick(callback)));
+    unawaited(_tick(callback));
   }
 
   static Future<void> _tick(
@@ -59,14 +73,13 @@ final class ProximityScanner {
     if (!BleAvatarTransferService.isSupported) return;
     _busy = true;
     try {
-      if (!await isEnabled()) return;
-      if (LiveMatchWatcher.activeBackendMode == null) return;
-      if (await MatchCooldownStore.isActive()) return;
+      if (!await MatchProximityGate.shouldRunBackgroundScan()) {
+        await sync();
+        return;
+      }
 
-      final ble = BleAvatarTransferService();
-      final results = await ble.scan(timeout: _scanTimeout);
-      final nearby = BleAvatarTransferService.pickBestVexaDevice(results);
-      if (nearby == null) return;
+      final scanBlock = await MatchProximityGate.runProximityScan();
+      if (scanBlock != null) return;
 
       final filters =
           await DiscoveryFiltersStore.load() ?? const DiscoveryFiltersState();
@@ -81,8 +94,9 @@ final class ProximityScanner {
 
         final result = await MatchRepository.checkMatch(targetUserId: c.id);
         if (!result.isMatch) continue;
+        if (LiveMatchWatcher.isMuted(result.id)) continue;
 
-        // Pop-up'ı buradan açıyoruz; watcher aynı eşleşmeyi tekrarlamasın.
+        MatchProximityGate.recordProximitySignal();
         LiveMatchWatcher.markHandled(result.id);
         await onInvite(
           LiveMatchInvite(
@@ -97,7 +111,7 @@ final class ProximityScanner {
         break;
       }
     } catch (_) {
-      // BLE kapalı / izin yok / ağ hatası: sonraki turda tekrar dene.
+      // BLE / ağ: sonraki turda tekrar dene.
     } finally {
       _busy = false;
     }

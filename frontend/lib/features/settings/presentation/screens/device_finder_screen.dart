@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:vexa/core/theme/app_colors.dart';
+import 'package:vexa/core/storage/bound_lilygo_store.dart';
 import 'package:vexa/features/device/data/device_link_state.dart';
 import 'package:vexa/features/device/data/device_repository.dart';
 import 'package:vexa/features/finder/data/vexa_finder_service.dart';
@@ -43,6 +44,19 @@ class _DeviceFinderScreenState extends State<DeviceFinderScreen> {
   }
 
   Future<void> _toggleScan(bool value) async {
+    if (value) {
+      if (!await BoundLilyGoStore.hasBinding()) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Yakınlık taraması için önce LilyGO cihazını eşle.',
+            ),
+          ),
+        );
+        return;
+      }
+    }
     await ProximityScanner.setEnabled(value);
     if (mounted) setState(() => _scanEnabled = value);
   }
@@ -90,8 +104,8 @@ class _DeviceFinderScreenState extends State<DeviceFinderScreen> {
           const SizedBox(height: 12),
           Text(
             'Yakınlık taraması açıkken telefon 20 sn\'de bir VEXA cihazlarını '
-            'arar. Uyumlu biri bulunursa LilyGO titrer, ekranında QUIZ TIME '
-            'yazar (firmware ile) ve telefonda quiz daveti açılır.',
+            'arar. Kendi LilyGO\'n bağlı olmalı; yakında uyumlu biri bulunursa '
+            'LilyGO titrer, ekranında QUIZ TIME yazar ve telefonda quiz daveti açılır.',
             style: TextStyle(color: muted, height: 1.45),
             textAlign: TextAlign.center,
           ),
@@ -99,7 +113,7 @@ class _DeviceFinderScreenState extends State<DeviceFinderScreen> {
           Text(
             _link.isLiveBlePaired
                 ? 'LilyGO eşlemesi: aktif'
-                : 'LilyGO eşlemesi: yok (uyarı yine telefonda çalışır)',
+                : 'LilyGO eşlemesi: yok — otomatik eşleşme daveti çıkmaz',
             style: TextStyle(
               color: _link.isLiveBlePaired ? AppColors.primary : muted,
               fontWeight: FontWeight.w600,
@@ -109,14 +123,16 @@ class _DeviceFinderScreenState extends State<DeviceFinderScreen> {
           const SizedBox(height: 20),
           SwitchListTile(
             value: _scanEnabled,
-            onChanged: _toggleScan,
+            onChanged: _link.isLiveBlePaired || _scanEnabled
+                ? _toggleScan
+                : null,
             title: const Text(
               'Yakınlık taraması',
               style: TextStyle(fontWeight: FontWeight.w700),
             ),
             subtitle: const Text(
-              '20 sn\'de bir BLE taraması — VEXA cihazı görülünce otomatik '
-              'eşleşme kontrolü yapılır.',
+              '20 sn\'de bir BLE taraması — LilyGO bağlıyken yakında VEXA '
+              'görülürse eşleşme kontrolü yapılır.',
             ),
             contentPadding: EdgeInsets.zero,
           ),

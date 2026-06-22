@@ -119,19 +119,43 @@ const passesDiscoveryFilters = (filters, profileJson) => {
 };
 
 // İki cevap haritasını karşılaştırır (anahtar: "ilgiAlani:soruId" → "a"|"b").
-const compareQuizAnswers = (answersA, answersB) => {
+// expectedKeys verilirse tam 5 soru üzerinden hesaplanır; farklı soru seti → fail.
+const compareQuizAnswers = (answersA, answersB, expectedKeys = null) => {
   const a = answersA && typeof answersA === "object" ? answersA : {};
   const b = answersB && typeof answersB === "object" ? answersB : {};
 
-  const sharedKeys = Object.keys(a).filter((key) =>
-    Object.prototype.hasOwnProperty.call(b, key)
-  );
+  const keys = expectedKeys?.length
+    ? [...expectedKeys].sort()
+    : [...new Set([...Object.keys(a), ...Object.keys(b)])].sort();
 
-  const matching = sharedKeys.filter((key) => a[key] === b[key]).length;
-  const total = sharedKeys.length;
+  const keysA = Object.keys(a).sort();
+  const keysB = Object.keys(b).sort();
+  const keyMismatch =
+    expectedKeys?.length > 0
+      ? keysA.join("|") !== keys.join("|") || keysB.join("|") !== keys.join("|")
+      : keysA.join("|") !== keysB.join("|");
+
+  if (keyMismatch) {
+    return {
+      matching: 0,
+      total: keys.length || 5,
+      percent: 0,
+      passed: false,
+      keyMismatch: true
+    };
+  }
+
+  const matching = keys.filter((key) => a[key] === b[key]).length;
+  const total = keys.length;
   const percent = total > 0 ? Math.round((matching / total) * 100) : 0;
 
-  return { matching, total, percent, passed: total > 0 && percent >= 80 };
+  return {
+    matching,
+    total,
+    percent,
+    passed: total > 0 && percent >= 80,
+    keyMismatch: false
+  };
 };
 
 module.exports = {

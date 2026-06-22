@@ -31,9 +31,8 @@ final class DeviceLinkState {
 
   bool get isBleHardware =>
       deviceCode != null &&
-      (deviceCode!.toUpperCase().contains('VEXA-B') ||
-          deviceCode!.toUpperCase().startsWith('BLE-') ||
-          deviceCode!.toUpperCase() == 'VEXA-B4DC');
+      (deviceCode!.toUpperCase().startsWith('VEXA-') ||
+          deviceCode!.toUpperCase().startsWith('BLE-'));
 
   /// Ayarlarda “gerçek LilyGO bağlı” gösterimi.
   bool get isLiveBlePaired => hasServerPair && isBleHardware && !isSimulation;

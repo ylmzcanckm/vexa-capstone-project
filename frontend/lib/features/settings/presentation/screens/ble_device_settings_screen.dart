@@ -1,8 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:vexa/core/storage/bound_lilygo_store.dart';
 import 'package:vexa/core/storage/device_settings_preferences.dart';
 import 'package:vexa/core/theme/app_colors.dart';
+import 'package:vexa/core/storage/device_connection_preferences.dart';
+import 'package:vexa/features/auth/data/user_repository.dart';
 import 'package:vexa/features/auth/presentation/screens/login_screen.dart';
 import 'package:vexa/features/device/data/ble_avatar_transfer_service.dart';
 import 'package:vexa/features/device/data/device_link_state.dart';
@@ -26,6 +29,8 @@ class _BleDeviceSettingsScreenState extends State<BleDeviceSettingsScreen> {
   String? _syncStatus;
   Timer? _brightnessDebounce;
 
+  String? _boundBleName;
+
   @override
   void initState() {
     super.initState();
@@ -43,17 +48,66 @@ class _BleDeviceSettingsScreenState extends State<BleDeviceSettingsScreen> {
     setState(() => _loading = true);
     try {
       final remote = await DeviceRepository.fetchMyDevice();
+      final link = DeviceLinkState.fromServer(remote);
       final prefs = await DeviceSettingsPreferences.load();
+      try {
+        final me = await UserRepository.fetchMe();
+        await BoundLilyGoStore.setActiveUserId(me.id);
+      } catch (_) {}
+      await BoundLilyGoStore.syncFromServerDeviceCode(link.deviceCode);
+      final bound = await BoundLilyGoStore.load();
       if (!mounted) return;
       setState(() {
-        _link = DeviceLinkState.fromServer(remote);
+        _link = link;
+        _boundBleName = bound ?? link.deviceCode;
         _settings = prefs;
         _loading = false;
       });
     } catch (_) {
       if (!mounted) return;
-      setState(() => _loading = false);
+      final bound = await BoundLilyGoStore.load();
+      setState(() {
+        _boundBleName = bound;
+        _loading = false;
+      });
     }
+  }
+
+  Future<void> _unpairDevice() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Eşleşmeyi kaldır'),
+        content: const Text(
+          'LilyGO eşleşmesi silinecek. Avatar ve ayarlar artık otomatik '
+          'bu cihaza gitmez. Yeniden eşleşmek için cihaz seçmen gerekir.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('İptal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Kaldır'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _loading = true);
+    try {
+      await BoundLilyGoStore.clear();
+      await DeviceRepository.unpairDevice();
+      await DeviceConnectionPreferences.setDeviceStepComplete(false);
+    } catch (_) {}
+    if (!mounted) return;
+    await _load();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('LilyGO eşleşmesi kaldırıldı.')),
+    );
   }
 
   Future<void> _openDeviceConnection() async {
@@ -72,7 +126,7 @@ class _BleDeviceSettingsScreenState extends State<BleDeviceSettingsScreen> {
     setState(() => _settings = next);
     await DeviceSettingsPreferences.save(next);
 
-    if (!_link.isLiveBlePaired || !BleAvatarTransferService.isSupported) {
+    if (!_link.isLiveBlePaired && !await BoundLilyGoStore.hasBinding()) {
       return;
     }
 
@@ -112,8 +166,10 @@ class _BleDeviceSettingsScreenState extends State<BleDeviceSettingsScreen> {
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
     final surface = Theme.of(context).colorScheme.surface;
     final border = Theme.of(context).dividerColor;
-    final liveBle = _link.isLiveBlePaired;
-    final canSync = liveBle && BleAvatarTransferService.isSupported;
+    final hasBinding =
+        _boundBleName != null && _boundBleName!.trim().isNotEmpty;
+    final liveBle = hasBinding || _link.isLiveBlePaired;
+    final canSync = hasBinding && BleAvatarTransferService.isSupported;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Cihaz ayarları')),
@@ -123,17 +179,29 @@ class _BleDeviceSettingsScreenState extends State<BleDeviceSettingsScreen> {
           _StatusCard(
             loading: _loading,
             liveBle: liveBle,
-            deviceName: _link.deviceName ?? _link.deviceCode,
-            hasPair: _link.hasServerPair,
+            deviceName: _boundBleName ?? _link.deviceName ?? _link.deviceCode,
+            hasPair: hasBinding || _link.hasServerPair,
             muted: muted,
             textTheme: textTheme,
           ),
           const SizedBox(height: 12),
           FilledButton.icon(
             onPressed: _loading || _syncing ? null : _openDeviceConnection,
-            icon: Icon(liveBle ? Icons.bluetooth_connected_rounded : Icons.bluetooth_searching_rounded),
-            label: Text(liveBle ? 'Yeniden bağlan' : 'LilyGO\'ya bağlan'),
+            icon: Icon(
+              hasBinding
+                  ? Icons.swap_horiz_rounded
+                  : Icons.bluetooth_searching_rounded,
+            ),
+            label: Text(hasBinding ? 'Cihazı değiştir' : 'LilyGO\'ya bağlan'),
           ),
+          if (hasBinding) ...[
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: _loading || _syncing ? null : _unpairDevice,
+              icon: const Icon(Icons.link_off_rounded),
+              label: const Text('Eşleşmeyi kaldır'),
+            ),
+          ],
           if (liveBle) ...[
             const SizedBox(height: 8),
             Text(
