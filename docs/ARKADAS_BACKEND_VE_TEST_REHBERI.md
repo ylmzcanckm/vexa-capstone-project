@@ -417,11 +417,11 @@ Beklenen: **401** `Google sign-in failed` — route var demek (404 `Cannot POST`
 ```bash
 curl -X POST https://vexa-backend-umg2.onrender.com/api/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"email":"test@vexa.dev","password":"123456","fullName":"Test User"}'
+  -d '{"email":"test@vexa.dev","password": "<DEMO_PASSWORD>","fullName":"Test User"}'
 
 curl -X POST https://vexa-backend-umg2.onrender.com/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"test@vexa.dev","password":"123456"}'
+  -d '{"email":"test@vexa.dev","password": "<DEMO_PASSWORD>"}'
 ```
 
 Yanıttaki `token`’ı kopyala.

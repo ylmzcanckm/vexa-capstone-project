@@ -72,7 +72,7 @@ Request:
 ```json
 {
   "email": "user@example.com",
-  "password": "123456",
+  "password": "<DEMO_PASSWORD>",
   "fullName": "User Name"
 }
 ```
@@ -104,7 +104,7 @@ Request:
 ```json
 {
   "email": "user@example.com",
-  "password": "123456"
+  "password": "<DEMO_PASSWORD>"
 }
 ```
 

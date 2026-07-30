@@ -246,7 +246,7 @@ Request:
 ```json
 {
   "email": "can@example.com",
-  "password": "123456",
+  "password": "<DEMO_PASSWORD>",
   "fullName": "Can"
 }
 ```
@@ -306,7 +306,7 @@ Request:
 ```json
 {
   "email": "can@example.com",
-  "password": "123456"
+  "password": "<DEMO_PASSWORD>"
 }
 ```
 
